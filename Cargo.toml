@@ -1,0 +1,16 @@
+[package]
+name = "germ"
+version = "0.1.0"
+authors = ["Chris Overcash <covercash2@gmail.com>"]
+
+[dependencies]
+conrod_derive = "0.1.2"
+find_folder = "0.3.0"
+glium = "0.21.0"
+glutin = "0.16.0"
+rusttype = "0.6.1"
+time = "0.1.40"
+
+[dependencies.conrod]
+version = "0.60.0"
+features = ["winit", "glium"]
