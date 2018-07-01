@@ -1,6 +1,11 @@
 #[macro_use]
 extern crate conrod;
+#[macro_use]
+extern crate serde_derive;
+extern crate toml;
+extern crate xdg;
 
+mod config;
 mod constants;
 mod ui;
 

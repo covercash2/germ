@@ -1,0 +1,5 @@
+[assets]
+font_path = "/Users/chreeus/code/germ/assets/fonts/Default.ttf"
+
+[graphics]
+vsync = true

@@ -6,7 +6,7 @@ use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::{color, image, widget, Colorable, Positionable, Sizeable, Widget};
 
-use super::{Config, Ui};
+use super::{Config, Ui, DEFAULT_DIMENSIONS, DEFAULT_TITLE};
 
 pub struct Conrod {
     display: glium::Display,
@@ -24,17 +24,17 @@ impl Ui for Conrod {
     fn init(config: Config) -> Result<Self, String> {
         let events_loop = glutin::EventsLoop::new();
         let window = glutin::WindowBuilder::new()
-            .with_title(config.title.clone())
-            .with_dimensions(config.dimensions[0], config.dimensions[1]);
+            .with_title(DEFAULT_TITLE)
+            .with_dimensions(DEFAULT_DIMENSIONS[0], DEFAULT_DIMENSIONS[1]);
         let context = glutin::ContextBuilder::new()
-            .with_vsync(config.vsync)
+            .with_vsync(config.graphics.vsync.unwrap_or(false))
             .with_multisampling(4); // TODO ??
         let display = match glium::Display::new(window, context, &events_loop) {
             Ok(d) => d,
             Err(e) => return Err(format!("could not create the display: {}", e)),
         };
         let mut ui =
-            conrod::UiBuilder::new([config.dimensions[0] as f64, config.dimensions[1] as f64])
+            conrod::UiBuilder::new([DEFAULT_DIMENSIONS[0] as f64, DEFAULT_DIMENSIONS[1] as f64])
                 .build();
 
         let renderer = match conrod::backend::glium::Renderer::new(&display) {
@@ -43,7 +43,9 @@ impl Ui for Conrod {
         };
         let image_map = image::Map::<Texture2d>::new();
 
-        ui.fonts.insert_from_file(config.font_path).unwrap();
+        ui.fonts
+            .insert_from_file(config.assets.font_path)
+            .expect("could not load font");
 
         return Ok(Conrod {
             display: display,
@@ -56,6 +58,8 @@ impl Ui for Conrod {
 
     fn show(mut self) -> Result<(), String> {
         let ids = Ids::new(self.ui.widget_id_generator());
+
+        let mut text: String = "placeholder text".to_owned();
 
         'main: loop {
             let mut events = Vec::new();
@@ -97,16 +101,14 @@ impl Ui for Conrod {
             }
 
             {
-                let mut ui_cell = self.ui.set_widgets();
-
-                let mut text: String = "placeholder text".to_owned();
+                let mut ui_cell: conrod::UiCell = self.ui.set_widgets();
 
                 widget::Canvas::new()
                     .scroll_kids_vertically()
                     .color(color::DARK_CHARCOAL)
                     .set(ids.canvas, &mut ui_cell);
 
-                for edit in widget::TextEdit::new(text.as_str())
+                for new_text in widget::TextEdit::new(text.as_str())
                     .color(color::WHITE)
                     .padded_w_of(ids.canvas, 20.0)
                     .mid_top_of(ids.canvas)
@@ -115,7 +117,7 @@ impl Ui for Conrod {
                     .restrict_to_height(false)
                     .set(ids.text_edit, &mut ui_cell)
                 {
-                    text = edit;
+                    text = new_text;
                 }
 
                 widget::Scrollbar::y_axis(ids.canvas)
