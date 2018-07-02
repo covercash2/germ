@@ -2,7 +2,6 @@ use std::fs::read_to_string;
 use std::path::Path;
 
 use toml;
-use toml::Value;
 use xdg::BaseDirectories;
 
 #[derive(Deserialize)]

@@ -1,3 +1,5 @@
+pub mod text;
+
 use conrod;
 use conrod::backend::glium::glium;
 use conrod::backend::glium::glium::glutin;
@@ -5,10 +7,13 @@ use conrod::backend::glium::glium::glutin::{Event, KeyboardInput, VirtualKeyCode
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::text::Font;
-use conrod::{color, image, widget, Colorable, Positionable, Sizeable, Widget};
+use conrod::{color, image, widget, Colorable, Widget};
 
 use super::{load_font, Config, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
+use ui::TextInput as TextInputTrait;
+
+use self::text::TextInput;
 
 pub struct Conrod {
     display: glium::Display,
@@ -19,7 +24,7 @@ pub struct Conrod {
 }
 
 widget_ids! {
-    struct Ids { canvas, text_input, scrollbar }
+    struct Ids { canvas, text_output, text_input, scrollbar }
 }
 
 impl Ui for Conrod {
@@ -48,20 +53,13 @@ impl Ui for Conrod {
 
         let font_family = config.font.family.unwrap_or(DEFAULT_FONT.to_string());
 
-        println!("font family: {}", font_family);
-
         let font = load_font(&font_family)
             .map_err(|e| format!("could not load font:\n{}", e))
             .and_then(|bytes| {
                 Font::from_bytes(bytes)
                     .map_err(|e| format!("could not parse font from bytes:\n{}", e))
             })?;
-
         ui.fonts.insert(font);
-
-        for id in ui.fonts.ids() {
-            eprintln!("id: {:?}", id);
-        }
 
         return Ok(Conrod {
             display: display,
@@ -75,7 +73,9 @@ impl Ui for Conrod {
     fn show(mut self) -> Result<(), String> {
         let ids = Ids::new(self.ui.widget_id_generator());
 
-        let mut text: String = "placeholder text".to_owned();
+        let mut text_input = TextInput::new(ids.text_input, ids.canvas);
+
+        text_input.set_text("some text");
 
         'main: loop {
             let mut events = Vec::new();
@@ -121,20 +121,10 @@ impl Ui for Conrod {
 
                 widget::Canvas::new()
                     .scroll_kids_vertically()
-                    .color(color::DARK_CHARCOAL)
+                    .color(color::BLACK)
                     .set(ids.canvas, &mut ui_cell);
 
-                for new_text in widget::TextEdit::new(text.as_str())
-                    .color(color::WHITE)
-                    .padded_w_of(ids.canvas, 20.0)
-                    .mid_top_of(ids.canvas)
-                    .left_justify()
-                    .line_spacing(2.5)
-                    .restrict_to_height(false)
-                    .set(ids.text_input, &mut ui_cell)
-                {
-                    text = new_text;
-                }
+                text_input.update(&mut ui_cell);
 
                 widget::Scrollbar::y_axis(ids.canvas)
                     .auto_hide(true)

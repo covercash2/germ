@@ -1,7 +1,5 @@
 pub mod backend;
 
-use std::path::PathBuf;
-
 use font_loader::system_fonts;
 use font_loader::system_fonts::FontPropertyBuilder;
 
@@ -13,6 +11,11 @@ pub trait Ui {
     where
         Self: Sized;
     fn show(self) -> Result<(), String>;
+}
+
+pub trait TextInput {
+    fn set_text(&mut self, text: &str);
+    fn submit(&self) -> String;
 }
 
 pub fn load_font(family: &str) -> Result<Vec<u8>, String> {
