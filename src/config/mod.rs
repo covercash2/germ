@@ -1,4 +1,5 @@
 use std::fs::read_to_string;
+use std::path::Path;
 
 use toml;
 use toml::Value;
@@ -6,18 +7,30 @@ use xdg::BaseDirectories;
 
 #[derive(Deserialize)]
 pub struct Config {
-    pub assets: Assets,
+    pub font: Font,
     pub graphics: Graphics,
 }
 
 #[derive(Deserialize)]
-pub struct Assets {
-    pub font_path: String,
+pub struct Font {
+    pub family: Option<String>,
+    pub size: Option<i64>,
 }
 
 #[derive(Deserialize)]
 pub struct Graphics {
     pub vsync: Option<bool>,
+}
+
+impl Config {
+    fn load<P: AsRef<Path>>(config_file: P) -> Result<Config, String> {
+        match read_to_string(config_file) {
+            Ok(string) => {
+                toml::from_str(&string).map_err(|e| format!("could not parse toml config:\n{}", e))
+            }
+            Err(io_err) => Err(format!("could not read config file:\n{}", io_err)),
+        }
+    }
 }
 
 impl Default for Config {
@@ -26,9 +39,7 @@ impl Default for Config {
             .expect("could not read xdg config directory")
             .get_config_home()
             .join("germ/config.toml");
-        let config_string: String =
-            read_to_string(config_file).expect("could not read config file");
 
-        toml::from_str(&config_string).expect("could not parse config file")
+        return Config::load(config_file).expect("could not load default config");
     }
 }

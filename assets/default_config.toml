@@ -1,5 +1,6 @@
-[assets]
-font_path = "/Users/chreeus/code/germ/assets/fonts/Default.ttf"
+[font]
+family = "Input Mono"
+size = 13
 
 [graphics]
 vsync = true

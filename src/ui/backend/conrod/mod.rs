@@ -1,12 +1,14 @@
 use conrod;
 use conrod::backend::glium::glium;
 use conrod::backend::glium::glium::glutin;
-use conrod::backend::glium::glium::glutin::{Event, WindowEvent};
+use conrod::backend::glium::glium::glutin::{Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
+use conrod::text::Font;
 use conrod::{color, image, widget, Colorable, Positionable, Sizeable, Widget};
 
-use super::{Config, Ui, DEFAULT_DIMENSIONS, DEFAULT_TITLE};
+use super::{load_font, Config, Ui};
+use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
 pub struct Conrod {
     display: glium::Display,
@@ -17,14 +19,14 @@ pub struct Conrod {
 }
 
 widget_ids! {
-    struct Ids { canvas, text_edit, scrollbar }
+    struct Ids { canvas, text_input, scrollbar }
 }
 
 impl Ui for Conrod {
     fn init(config: Config) -> Result<Self, String> {
         let events_loop = glutin::EventsLoop::new();
         let window = glutin::WindowBuilder::new()
-            .with_title(DEFAULT_TITLE)
+            .with_title(DEFAULT_TITLE) // TODO
             .with_dimensions(DEFAULT_DIMENSIONS[0], DEFAULT_DIMENSIONS[1]);
         let context = glutin::ContextBuilder::new()
             .with_vsync(config.graphics.vsync.unwrap_or(false))
@@ -41,11 +43,25 @@ impl Ui for Conrod {
             Ok(r) => r,
             Err(e) => return Err(format!("could not create renderer: {}", e)),
         };
+
         let image_map = image::Map::<Texture2d>::new();
 
-        ui.fonts
-            .insert_from_file(config.assets.font_path)
-            .expect("could not load font");
+        let font_family = config.font.family.unwrap_or(DEFAULT_FONT.to_string());
+
+        println!("font family: {}", font_family);
+
+        let font = load_font(&font_family)
+            .map_err(|e| format!("could not load font:\n{}", e))
+            .and_then(|bytes| {
+                Font::from_bytes(bytes)
+                    .map_err(|e| format!("could not parse font from bytes:\n{}", e))
+            })?;
+
+        ui.fonts.insert(font);
+
+        for id in ui.fonts.ids() {
+            eprintln!("id: {:?}", id);
+        }
 
         return Ok(Conrod {
             display: display,
@@ -88,8 +104,8 @@ impl Ui for Conrod {
                         WindowEvent::Closed
                         | WindowEvent::KeyboardInput {
                             input:
-                                glium::glutin::KeyboardInput {
-                                    virtual_keycode: Some(glium::glutin::VirtualKeyCode::Escape),
+                                KeyboardInput {
+                                    virtual_keycode: Some(VirtualKeyCode::Escape),
                                     ..
                                 },
                             ..
@@ -112,10 +128,10 @@ impl Ui for Conrod {
                     .color(color::WHITE)
                     .padded_w_of(ids.canvas, 20.0)
                     .mid_top_of(ids.canvas)
-                    .center_justify()
+                    .left_justify()
                     .line_spacing(2.5)
                     .restrict_to_height(false)
-                    .set(ids.text_edit, &mut ui_cell)
+                    .set(ids.text_input, &mut ui_cell)
                 {
                     text = new_text;
                 }
