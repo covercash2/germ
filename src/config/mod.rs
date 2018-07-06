@@ -23,11 +23,15 @@ pub struct Graphics {
 
 impl Config {
     fn load<P: AsRef<Path>>(config_file: P) -> Result<Config, String> {
-        match read_to_string(config_file) {
+        match read_to_string(&config_file) {
             Ok(string) => {
                 toml::from_str(&string).map_err(|e| format!("could not parse toml config:\n{}", e))
             }
-            Err(io_err) => Err(format!("could not read config file:\n{}", io_err)),
+            Err(io_err) => Err(format!(
+                "could not read config file: {:?}\n{}",
+                config_file.as_ref(),
+                io_err
+            )),
         }
     }
 }
@@ -39,6 +43,9 @@ impl Default for Config {
             .get_config_home()
             .join("germ/config.toml");
 
-        return Config::load(config_file).expect("could not load default config");
+        return match Config::load(config_file) {
+            Ok(config) => config,
+            Err(e) => panic!(format!("could not load default config:\n{}", e)),
+        };
     }
 }
