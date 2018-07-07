@@ -11,9 +11,10 @@ use conrod::{color, image, widget, Colorable, Widget};
 
 use super::{load_font, Config, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
-use ui::TextInput as TextInputTrait;
 
-use self::text::TextInput;
+use ui::TextView;
+
+use self::text::Text;
 
 pub struct Conrod {
     display: glium::Display,
@@ -73,7 +74,7 @@ impl Ui for Conrod {
     fn show(mut self) -> Result<(), String> {
         let ids = Ids::new(self.ui.widget_id_generator());
 
-        let mut text_input = TextInput::new(ids.text_input, ids.canvas);
+        let mut text_input = Text::new(ids.text_input, ids.canvas);
 
         text_input.set_text("some text");
 

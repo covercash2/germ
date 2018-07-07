@@ -7,16 +7,17 @@ use conrod::Widget;
 use conrod::{Positionable, Sizeable};
 
 use ui;
+use ui::{Input, TextView};
 
-pub struct TextInput {
+pub struct Text {
     parent: widget::Id,
     id: widget::Id,
     text: String,
 }
 
-impl TextInput {
-    pub fn new(widget_id: widget::Id, parent_id: widget::Id) -> TextInput {
-        return TextInput {
+impl Text {
+    pub fn new(widget_id: widget::Id, parent_id: widget::Id) -> Text {
+        return Text {
             parent: parent_id,
             id: widget_id,
             text: String::new(),
@@ -39,12 +40,15 @@ impl TextInput {
     }
 }
 
-impl ui::TextInput for TextInput {
+impl TextView for Text {
     fn set_text(&mut self, text: &str) {
         self.text.clear();
         self.text.push_str(text);
     }
+}
 
+impl Input for Text {
+    type Command = String;
     fn submit(&self) -> String {
         return String::from("not implemented");
     }

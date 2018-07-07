@@ -1,5 +1,6 @@
 use std::fs::read_to_string;
 use std::path::Path;
+use std::path::PathBuf;
 
 use toml;
 use xdg::BaseDirectories;
@@ -38,7 +39,7 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let config_file = BaseDirectories::new()
+        let config_file: PathBuf = BaseDirectories::new()
             .expect("could not read xdg config directory")
             .get_config_home()
             .join("germ/config.toml");
