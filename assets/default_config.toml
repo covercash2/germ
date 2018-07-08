@@ -4,3 +4,6 @@ size = 13
 
 [graphics]
 vsync = true
+
+[shell]
+path = "/bin/bash"

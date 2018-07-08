@@ -6,15 +6,30 @@ extern crate serde_derive;
 extern crate toml;
 extern crate xdg;
 
+mod app;
 mod config;
 mod constants;
+mod shell;
 mod ui;
 
+use app::App;
+
+use constants::DEFAULT_FONT;
+
+use shell::Shell;
+
 use ui::backend::conrod::Conrod;
-use ui::{Config, Ui};
+use ui::Config;
 
 fn main() -> Result<(), String> {
-    let ui: Conrod = Conrod::init(Config::default()).expect("could not create ui");
+    let config: Config = Config::default();
+    let shell: Shell = Shell::new(config.shell.path.clone().into());
+    let ui: Conrod = Conrod::new(
+        config.font.family.clone().unwrap_or(DEFAULT_FONT.into()),
+        config.graphics.vsync.unwrap_or(false),
+    ).expect("could not create ui");
 
-    return ui.show();
+    let app = App::new(config, shell, ui);
+
+    return app.run();
 }

@@ -9,6 +9,7 @@ use xdg::BaseDirectories;
 pub struct Config {
     pub font: Font,
     pub graphics: Graphics,
+    pub shell: Shell,
 }
 
 #[derive(Deserialize)]
@@ -20,6 +21,11 @@ pub struct Font {
 #[derive(Deserialize)]
 pub struct Graphics {
     pub vsync: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct Shell {
+    pub path: String,
 }
 
 impl Config {

@@ -1,6 +1,7 @@
 pub mod backend;
 
-use std::str::FromStr;
+use std::io;
+use std::process::{Command, Output};
 
 use font_loader::system_fonts;
 use font_loader::system_fonts::FontPropertyBuilder;
@@ -9,19 +10,12 @@ pub use super::config::Config;
 pub use super::constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
 pub trait Ui {
-    fn init(config: Config) -> Result<Self, String>
-    where
-        Self: Sized;
     fn show(self) -> Result<(), String>;
 }
 
 pub trait TextView {
+    fn get_text(&self) -> &String;
     fn set_text(&mut self, string: &str);
-}
-
-pub trait Input {
-    type Command: FromStr;
-    fn submit(&self) -> Self::Command;
 }
 
 pub fn load_font(family: &str) -> Result<Vec<u8>, String> {

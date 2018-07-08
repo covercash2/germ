@@ -7,7 +7,7 @@ use conrod::backend::glium::glium::glutin::{Event, KeyboardInput, VirtualKeyCode
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::text::Font;
-use conrod::{color, image, widget, Colorable, Widget};
+use conrod::{color, image, widget, Colorable, UiCell, Widget};
 
 use super::{load_font, Config, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
@@ -15,6 +15,10 @@ use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 use ui::TextView;
 
 use self::text::Text;
+
+widget_ids! {
+    struct Ids { canvas, command_input, command_output, scrollbar }
+}
 
 pub struct Conrod {
     display: glium::Display,
@@ -24,18 +28,18 @@ pub struct Conrod {
     ui: conrod::Ui,
 }
 
-widget_ids! {
-    struct Ids { canvas, text_output, text_input, scrollbar }
+pub trait Update {
+    fn update(&mut self, ui_cell: &mut UiCell);
 }
 
-impl Ui for Conrod {
-    fn init(config: Config) -> Result<Self, String> {
+impl Conrod {
+    pub fn new(font_family: String, vsync: bool) -> Result<Self, String> {
         let events_loop = glutin::EventsLoop::new();
         let window = glutin::WindowBuilder::new()
             .with_title(DEFAULT_TITLE) // TODO
             .with_dimensions(DEFAULT_DIMENSIONS[0], DEFAULT_DIMENSIONS[1]);
         let context = glutin::ContextBuilder::new()
-            .with_vsync(config.graphics.vsync.unwrap_or(false))
+            .with_vsync(vsync)
             .with_multisampling(4); // TODO ??
         let display = match glium::Display::new(window, context, &events_loop) {
             Ok(d) => d,
@@ -51,8 +55,6 @@ impl Ui for Conrod {
         };
 
         let image_map = image::Map::<Texture2d>::new();
-
-        let font_family = config.font.family.unwrap_or(DEFAULT_FONT.to_string());
 
         let font = load_font(&font_family)
             .map_err(|e| format!("could not load font:\n{}", e))
@@ -70,13 +72,17 @@ impl Ui for Conrod {
             ui: ui,
         });
     }
+}
 
+impl Ui for Conrod {
     fn show(mut self) -> Result<(), String> {
         let ids = Ids::new(self.ui.widget_id_generator());
 
-        let mut text_input = Text::new(ids.text_input, ids.canvas);
+        let mut text_input = Text::new(ids.command_input, ids.canvas, true);
+        let mut text_output = Text::new(ids.command_output, ids.canvas, false);
 
         text_input.set_text("some text");
+        text_output.set_text("output text");
 
         'main: loop {
             let mut events = Vec::new();
@@ -125,11 +131,12 @@ impl Ui for Conrod {
                     .color(color::BLACK)
                     .set(ids.canvas, &mut ui_cell);
 
-                text_input.update(&mut ui_cell);
-
                 widget::Scrollbar::y_axis(ids.canvas)
                     .auto_hide(true)
                     .set(ids.scrollbar, &mut ui_cell);
+
+                text_input.update(&mut ui_cell);
+                text_output.update(&mut ui_cell);
             }
 
             if let Some(primitives) = self.ui.draw_if_changed() {
