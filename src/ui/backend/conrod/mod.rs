@@ -29,11 +29,13 @@ widget_ids! {
 pub struct Conrod {
     display: glium::Display,
     events_loop: EventsLoop,
-    ids: Ids,
-    input_view: Text,
     image_map: image::Map<Texture2d>,
     renderer: conrod::backend::glium::Renderer,
     ui: conrod::Ui,
+
+    ids: Ids,
+    input_view: Text,
+    output_view: Text,
 }
 
 pub trait Update {
@@ -75,15 +77,18 @@ impl Conrod {
         ui.fonts.insert(font);
 
         let mut input_view = Text::new(ids.command_input, ids.canvas, true);
+        let mut output_view = Text::new(ids.command_output, ids.canvas, false);
 
         return Ok(Conrod {
             display: display,
             events_loop: events_loop,
             ids: ids,
-            input_view: input_view,
             image_map: image_map,
             renderer: renderer,
             ui: ui,
+
+            input_view: input_view,
+            output_view: output_view,
         });
     }
 
@@ -128,10 +133,8 @@ impl Ui for Conrod {
     type Events = Vec<ui::Event>;
 
     fn draw(&mut self) -> Result<(), String> {
-        let mut text_output = Text::new(self.ids.command_output, self.ids.canvas, false);
-
         self.input_view.set_text("some text");
-        text_output.set_text("output text");
+        self.output_view.set_text("output text");
 
         'main: loop {
             for event in self.events() {
@@ -161,7 +164,7 @@ impl Ui for Conrod {
                     .set(self.ids.scrollbar, &mut ui_cell);
 
                 self.input_view.update(&mut ui_cell);
-                text_output.update(&mut ui_cell);
+                self.output_view.update(&mut ui_cell);
             }
 
             if let Some(primitives) = self.ui.draw_if_changed() {
