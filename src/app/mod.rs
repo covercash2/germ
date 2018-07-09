@@ -1,6 +1,6 @@
 use config::Config;
 use shell::Shell;
-use ui::Ui;
+use ui::{Event, Ui};
 
 pub struct App<U: Ui> {
     config: Config,
@@ -18,14 +18,21 @@ impl<U: Ui> App<U> {
     }
 
     pub fn run(mut self) -> Result<(), String> {
-        self.ui.draw()
-    }
-
-    pub fn runa(mut self) -> Result<(), String> {
         'main: loop {
-            let events = self.ui.events();
+            for event in self.ui.events() {
+                match event {
+                    Event::Submit(command) => {
+                        eprintln!("submitted: {}", command);
+                    }
+                    // break loop
+                    Event::Exit => return Ok(()),
+                }
+            }
 
-            self.ui.draw();
+            match self.ui.draw() {
+                Ok(()) => (),
+                Err(e) => return Err(format!("error drawing ui:\n{}", e)),
+            }
         }
     }
 }

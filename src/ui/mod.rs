@@ -10,7 +10,7 @@ pub use super::config::Config;
 pub use super::constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
 pub trait Ui {
-    type Events;
+    type Events: IntoIterator<Item = Event>;
 
     fn draw(&mut self) -> Result<(), String>;
     fn events(&mut self) -> Self::Events;

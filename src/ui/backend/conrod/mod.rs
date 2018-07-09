@@ -133,50 +133,32 @@ impl Ui for Conrod {
     type Events = Vec<ui::Event>;
 
     fn draw(&mut self) -> Result<(), String> {
-        self.input_view.set_text("some text");
-        self.output_view.set_text("output text");
+        // put ui in a memory cage and draw elements
+        {
+            let mut ui_cell: conrod::UiCell = self.ui.set_widgets();
 
-        'main: loop {
-            for event in self.events() {
-                eprintln!("event: {:?}", event);
-                match event {
-                    ui::Event::Submit(command) => {
-                        eprintln!("command: {}", command);
-                    }
-                    ui::Event::Exit => {
-                        eprintln!("exit");
-                        break 'main;
-                    }
-                    _ => (),
-                }
-            }
+            widget::Canvas::new()
+                .scroll_kids_vertically()
+                .color(color::BLACK)
+                .set(self.ids.canvas, &mut ui_cell);
 
-            {
-                let mut ui_cell: conrod::UiCell = self.ui.set_widgets();
+            widget::Scrollbar::y_axis(self.ids.canvas)
+                .auto_hide(true)
+                .set(self.ids.scrollbar, &mut ui_cell);
 
-                widget::Canvas::new()
-                    .scroll_kids_vertically()
-                    .color(color::BLACK)
-                    .set(self.ids.canvas, &mut ui_cell);
+            self.input_view.update(&mut ui_cell);
+            self.output_view.update(&mut ui_cell);
+        }
 
-                widget::Scrollbar::y_axis(self.ids.canvas)
-                    .auto_hide(true)
-                    .set(self.ids.scrollbar, &mut ui_cell);
-
-                self.input_view.update(&mut ui_cell);
-                self.output_view.update(&mut ui_cell);
-            }
-
-            if let Some(primitives) = self.ui.draw_if_changed() {
-                self.renderer
-                    .fill(&self.display, primitives, &self.image_map);
-                let mut target = self.display.draw();
-                target.clear_color(0.0, 0.0, 0.0, 1.0);
-                self.renderer
-                    .draw(&self.display, &mut target, &self.image_map)
-                    .unwrap();
-                target.finish().unwrap();
-            }
+        if let Some(primitives) = self.ui.draw_if_changed() {
+            self.renderer
+                .fill(&self.display, primitives, &self.image_map);
+            let mut target = self.display.draw();
+            target.clear_color(0.0, 0.0, 0.0, 1.0);
+            self.renderer
+                .draw(&self.display, &mut target, &self.image_map)
+                .unwrap();
+            target.finish().unwrap();
         }
 
         return Ok(());
@@ -198,14 +180,12 @@ impl Ui for Conrod {
         }
 
         for event in events {
-            if let Some(event) = conrod::backend::winit::convert_event(event.clone(), &self.display)
+            if let Some(app_event) = self.process_event(&event) {
+                app_events.push(app_event);
+            } else if let Some(event) =
+                conrod::backend::winit::convert_event(event.clone(), &self.display)
             {
                 self.ui.handle_event(event);
-            }
-
-            match self.process_event(&event) {
-                Some(event) => app_events.push(event),
-                None => (),
             }
         }
 
