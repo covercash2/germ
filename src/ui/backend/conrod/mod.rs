@@ -1,7 +1,5 @@
 pub mod text;
 
-use std::collections::HashMap;
-
 use conrod;
 use conrod::backend::glium::glium;
 use conrod::backend::glium::glium::glutin;
@@ -11,11 +9,10 @@ use conrod::backend::glium::glium::glutin::{
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::text::Font;
-use conrod::widget::Id;
 use conrod::{color, image, widget, Colorable, UiCell, Widget};
 
 use super::{load_font, Ui};
-use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
+use constants::{DEFAULT_DIMENSIONS, DEFAULT_TITLE};
 
 use ui;
 use ui::TextView;
@@ -76,8 +73,8 @@ impl Conrod {
             })?;
         ui.fonts.insert(font);
 
-        let mut input_view = Text::new(ids.command_input, ids.canvas, true);
-        let mut output_view = Text::new(ids.command_output, ids.canvas, false);
+        let input_view = Text::new(ids.command_input, ids.canvas, true);
+        let output_view = Text::new(ids.command_output, ids.canvas, false);
 
         return Ok(Conrod {
             display: display,

@@ -6,7 +6,6 @@ use conrod::UiCell;
 use conrod::Widget;
 use conrod::{Positionable, Sizeable};
 
-use ui;
 use ui::TextView;
 
 use super::Update;
