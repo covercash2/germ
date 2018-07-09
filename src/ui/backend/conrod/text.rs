@@ -27,6 +27,12 @@ impl Text {
             text: String::new(),
         };
     }
+
+    pub fn submit(&mut self) -> String {
+        let ret = self.get_text().clone();
+        self.set_text("");
+        return ret;
+    }
 }
 
 impl Update for Text {

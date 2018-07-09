@@ -17,7 +17,15 @@ impl<U: Ui> App<U> {
         };
     }
 
-    pub fn run(self) -> Result<(), String> {
-        self.ui.show()
+    pub fn run(mut self) -> Result<(), String> {
+        self.ui.draw()
+    }
+
+    pub fn runa(mut self) -> Result<(), String> {
+        'main: loop {
+            let events = self.ui.events();
+
+            self.ui.draw();
+        }
     }
 }

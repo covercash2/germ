@@ -10,12 +10,21 @@ pub use super::config::Config;
 pub use super::constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
 pub trait Ui {
-    fn show(self) -> Result<(), String>;
+    type Events;
+
+    fn draw(&mut self) -> Result<(), String>;
+    fn events(&mut self) -> Self::Events;
 }
 
 pub trait TextView {
     fn get_text(&self) -> &String;
     fn set_text(&mut self, string: &str);
+}
+
+#[derive(Debug)]
+pub enum Event {
+    Submit(String),
+    Exit,
 }
 
 pub fn load_font(family: &str) -> Result<Vec<u8>, String> {

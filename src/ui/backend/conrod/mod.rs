@@ -1,17 +1,23 @@
 pub mod text;
 
+use std::collections::HashMap;
+
 use conrod;
 use conrod::backend::glium::glium;
 use conrod::backend::glium::glium::glutin;
-use conrod::backend::glium::glium::glutin::{Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use conrod::backend::glium::glium::glutin::{
+    ElementState, Event, EventsLoop, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent,
+};
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::text::Font;
+use conrod::widget::Id;
 use conrod::{color, image, widget, Colorable, UiCell, Widget};
 
-use super::{load_font, Config, Ui};
+use super::{load_font, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
+use ui;
 use ui::TextView;
 
 use self::text::Text;
@@ -22,7 +28,9 @@ widget_ids! {
 
 pub struct Conrod {
     display: glium::Display,
-    events_loop: glutin::EventsLoop,
+    events_loop: EventsLoop,
+    ids: Ids,
+    input_view: Text,
     image_map: image::Map<Texture2d>,
     renderer: conrod::backend::glium::Renderer,
     ui: conrod::Ui,
@@ -34,7 +42,7 @@ pub trait Update {
 
 impl Conrod {
     pub fn new(font_family: String, vsync: bool) -> Result<Self, String> {
-        let events_loop = glutin::EventsLoop::new();
+        let events_loop = EventsLoop::new();
         let window = glutin::WindowBuilder::new()
             .with_title(DEFAULT_TITLE) // TODO
             .with_dimensions(DEFAULT_DIMENSIONS[0], DEFAULT_DIMENSIONS[1]);
@@ -48,6 +56,8 @@ impl Conrod {
         let mut ui =
             conrod::UiBuilder::new([DEFAULT_DIMENSIONS[0] as f64, DEFAULT_DIMENSIONS[1] as f64])
                 .build();
+
+        let ids = Ids::new(ui.widget_id_generator());
 
         let renderer = match conrod::backend::glium::Renderer::new(&display) {
             Ok(r) => r,
@@ -64,61 +74,76 @@ impl Conrod {
             })?;
         ui.fonts.insert(font);
 
+        let mut input_view = Text::new(ids.command_input, ids.canvas, true);
+
         return Ok(Conrod {
             display: display,
             events_loop: events_loop,
+            ids: ids,
+            input_view: input_view,
             image_map: image_map,
             renderer: renderer,
             ui: ui,
         });
     }
+
+    /// convert glutin event into app level event
+    fn process_event(&mut self, event: &Event) -> Option<ui::Event> {
+        match *event {
+            Event::WindowEvent { ref event, .. } => match event {
+                // closed or ESC pressed
+                WindowEvent::Closed
+                | WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                            ..
+                        },
+                    ..
+                } => Some(ui::Event::Exit),
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            modifiers:
+                                ModifiersState {
+                                    shift: true,
+                                    ctrl: false,
+                                    alt: false,
+                                    logo: false,
+                                },
+                            state: ElementState::Pressed,
+                            virtual_keycode: Some(VirtualKeyCode::Return),
+                            ..
+                        },
+                    ..
+                } => Some(ui::Event::Submit(self.input_view.submit())),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 impl Ui for Conrod {
-    fn show(mut self) -> Result<(), String> {
-        let ids = Ids::new(self.ui.widget_id_generator());
+    type Events = Vec<ui::Event>;
 
-        let mut text_input = Text::new(ids.command_input, ids.canvas, true);
-        let mut text_output = Text::new(ids.command_output, ids.canvas, false);
+    fn draw(&mut self) -> Result<(), String> {
+        let mut text_output = Text::new(self.ids.command_output, self.ids.canvas, false);
 
-        text_input.set_text("some text");
+        self.input_view.set_text("some text");
         text_output.set_text("output text");
 
         'main: loop {
-            let mut events = Vec::new();
-
-            self.events_loop.poll_events(|event| {
-                events.push(event);
-            });
-
-            // wait for events
-            if events.is_empty() {
-                self.events_loop.run_forever(|event| {
-                    events.push(event);
-                    glium::glutin::ControlFlow::Break
-                });
-            }
-
-            for event in events {
-                if let Some(event) =
-                    conrod::backend::winit::convert_event(event.clone(), &self.display)
-                {
-                    self.ui.handle_event(event);
-                }
-
+            for event in self.events() {
+                eprintln!("event: {:?}", event);
                 match event {
-                    Event::WindowEvent { event, .. } => match event {
-                        WindowEvent::Closed
-                        | WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    virtual_keycode: Some(VirtualKeyCode::Escape),
-                                    ..
-                                },
-                            ..
-                        } => break 'main,
-                        _ => (),
-                    },
+                    ui::Event::Submit(command) => {
+                        eprintln!("command: {}", command);
+                    }
+                    ui::Event::Exit => {
+                        eprintln!("exit");
+                        break 'main;
+                    }
                     _ => (),
                 }
             }
@@ -129,13 +154,13 @@ impl Ui for Conrod {
                 widget::Canvas::new()
                     .scroll_kids_vertically()
                     .color(color::BLACK)
-                    .set(ids.canvas, &mut ui_cell);
+                    .set(self.ids.canvas, &mut ui_cell);
 
-                widget::Scrollbar::y_axis(ids.canvas)
+                widget::Scrollbar::y_axis(self.ids.canvas)
                     .auto_hide(true)
-                    .set(ids.scrollbar, &mut ui_cell);
+                    .set(self.ids.scrollbar, &mut ui_cell);
 
-                text_input.update(&mut ui_cell);
+                self.input_view.update(&mut ui_cell);
                 text_output.update(&mut ui_cell);
             }
 
@@ -152,5 +177,35 @@ impl Ui for Conrod {
         }
 
         return Ok(());
+    }
+
+    fn events(&mut self) -> Vec<ui::Event> {
+        let mut events = Vec::new();
+        let mut app_events = Vec::new();
+
+        self.events_loop.poll_events(|event| {
+            events.push(event);
+        });
+
+        if events.is_empty() {
+            self.events_loop.run_forever(|event| {
+                events.push(event);
+                glium::glutin::ControlFlow::Break
+            });
+        }
+
+        for event in events {
+            if let Some(event) = conrod::backend::winit::convert_event(event.clone(), &self.display)
+            {
+                self.ui.handle_event(event);
+            }
+
+            match self.process_event(&event) {
+                Some(event) => app_events.push(event),
+                None => (),
+            }
+        }
+
+        return app_events;
     }
 }
