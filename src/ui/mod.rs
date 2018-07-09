@@ -14,6 +14,7 @@ pub trait Ui {
 
     fn draw(&mut self) -> Result<(), String>;
     fn events(&mut self) -> Self::Events;
+    fn set_output(&mut self, string: &str);
 }
 
 pub trait TextView {

@@ -93,7 +93,8 @@ impl Conrod {
     }
 
     /// convert glutin event into app level event
-    fn process_event(&mut self, event: &Event) -> Option<ui::Event> {
+    /// returns an event and whether to capture it
+    fn process_event(&mut self, event: &Event) -> Option<(ui::Event, bool)> {
         match *event {
             Event::WindowEvent { ref event, .. } => match event {
                 // closed or ESC pressed
@@ -105,7 +106,7 @@ impl Conrod {
                             ..
                         },
                     ..
-                } => Some(ui::Event::Exit),
+                } => Some((ui::Event::Exit, false)),
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -121,7 +122,7 @@ impl Conrod {
                             ..
                         },
                     ..
-                } => Some(ui::Event::Submit(self.input_view.submit())),
+                } => Some((ui::Event::Submit(self.input_view.submit()), true)),
                 _ => None,
             },
             _ => None,
@@ -180,15 +181,26 @@ impl Ui for Conrod {
         }
 
         for event in events {
-            if let Some(app_event) = self.process_event(&event) {
-                app_events.push(app_event);
-            } else if let Some(event) =
-                conrod::backend::winit::convert_event(event.clone(), &self.display)
-            {
-                self.ui.handle_event(event);
+            let capture = match self.process_event(&event) {
+                Some((app_event, capture)) => {
+                    app_events.push(app_event);
+                    capture
+                }
+                None => false,
+            };
+            if !capture {
+                if let Some(event) =
+                    conrod::backend::winit::convert_event(event.clone(), &self.display)
+                {
+                    self.ui.handle_event(event);
+                }
             }
         }
 
         return app_events;
+    }
+
+    fn set_output(&mut self, string: &str) {
+        self.output_view.set_text(string);
     }
 }
