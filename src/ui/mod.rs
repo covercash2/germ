@@ -1,8 +1,5 @@
 pub mod backend;
 
-use std::io;
-use std::process::{Command, Output};
-
 use font_loader::system_fonts;
 use font_loader::system_fonts::FontPropertyBuilder;
 
@@ -10,10 +7,11 @@ pub use super::config::Config;
 pub use super::constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
 pub trait Ui {
-    type Events;
+    type Events: IntoIterator<Item = Event>;
 
     fn draw(&mut self) -> Result<(), String>;
     fn events(&mut self) -> Self::Events;
+    fn set_output(&mut self, string: &str);
 }
 
 pub trait TextView {
@@ -36,7 +34,7 @@ pub fn load_font(family: &str) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::load_font;
     use constants::DEFAULT_FONT;
     use font_loader::system_fonts;
@@ -50,6 +48,7 @@ mod test {
         let font_name = DEFAULT_FONT;
         let font = load_font(font_name).expect("could not load default font");
 
-        assert!(false);
+        // TODO finish
+        // assert!(false);
     }
 }

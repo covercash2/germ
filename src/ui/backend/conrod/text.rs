@@ -6,7 +6,6 @@ use conrod::UiCell;
 use conrod::Widget;
 use conrod::{Positionable, Sizeable};
 
-use ui;
 use ui::TextView;
 
 use super::Update;
@@ -42,9 +41,11 @@ impl Update for Text {
                 .color(color::WHITE)
                 .padded_w_of(self.parent, 16.0)
                 .mid_top_of(self.parent)
+                .kid_area_wh_of(self.parent)
                 .left_justify()
                 .line_spacing(2.5)
                 .restrict_to_height(false)
+                .parent(self.parent)
                 .set(self.id, ui_cell)
             {
                 Some(edited) => self.text = edited,
@@ -52,7 +53,8 @@ impl Update for Text {
             }
         } else {
             widget::Text::new(self.text.as_str())
-                .color(color::BLUE)
+                .color(color::WHITE)
+                .parent(self.parent)
                 .padded_w_of(self.parent, 16.0)
                 .set(self.id, ui_cell)
         }

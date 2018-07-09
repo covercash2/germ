@@ -1,7 +1,5 @@
 pub mod text;
 
-use std::collections::HashMap;
-
 use conrod;
 use conrod::backend::glium::glium;
 use conrod::backend::glium::glium::glutin;
@@ -11,11 +9,10 @@ use conrod::backend::glium::glium::glutin::{
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::text::Font;
-use conrod::widget::Id;
-use conrod::{color, image, widget, Colorable, UiCell, Widget};
+use conrod::{color, image, widget, Borderable, Colorable, UiCell, Widget};
 
 use super::{load_font, Ui};
-use constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
+use constants::{DEFAULT_DIMENSIONS, DEFAULT_TITLE};
 
 use ui;
 use ui::TextView;
@@ -23,7 +20,15 @@ use ui::TextView;
 use self::text::Text;
 
 widget_ids! {
-    struct Ids { canvas, command_input, command_output, scrollbar }
+    struct Ids {
+        main_canvas,
+        input_canvas,
+        output_canvas,
+
+        command_input,
+        command_output,
+        scrollbar
+    }
 }
 
 pub struct Conrod {
@@ -43,6 +48,7 @@ pub trait Update {
 }
 
 impl Conrod {
+    // TODO change name to fit semantics
     pub fn new(font_family: String, vsync: bool) -> Result<Self, String> {
         let events_loop = EventsLoop::new();
         let window = glutin::WindowBuilder::new()
@@ -76,8 +82,8 @@ impl Conrod {
             })?;
         ui.fonts.insert(font);
 
-        let mut input_view = Text::new(ids.command_input, ids.canvas, true);
-        let mut output_view = Text::new(ids.command_output, ids.canvas, false);
+        let input_view = Text::new(ids.command_input, ids.input_canvas, true);
+        let output_view = Text::new(ids.command_output, ids.output_canvas, false);
 
         return Ok(Conrod {
             display: display,
@@ -93,7 +99,8 @@ impl Conrod {
     }
 
     /// convert glutin event into app level event
-    fn process_event(&mut self, event: &Event) -> Option<ui::Event> {
+    /// returns an event and whether to capture it
+    fn process_event(&mut self, event: &Event) -> Option<(ui::Event, bool)> {
         match *event {
             Event::WindowEvent { ref event, .. } => match event {
                 // closed or ESC pressed
@@ -105,7 +112,7 @@ impl Conrod {
                             ..
                         },
                     ..
-                } => Some(ui::Event::Exit),
+                } => Some((ui::Event::Exit, false)),
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -121,7 +128,7 @@ impl Conrod {
                             ..
                         },
                     ..
-                } => Some(ui::Event::Submit(self.input_view.submit())),
+                } => Some((ui::Event::Submit(self.input_view.submit()), true)),
                 _ => None,
             },
             _ => None,
@@ -133,50 +140,48 @@ impl Ui for Conrod {
     type Events = Vec<ui::Event>;
 
     fn draw(&mut self) -> Result<(), String> {
-        self.input_view.set_text("some text");
-        self.output_view.set_text("output text");
+        // put ui in a memory cage and draw elements
+        {
+            let mut ui_cell: conrod::UiCell = self.ui.set_widgets();
 
-        'main: loop {
-            for event in self.events() {
-                eprintln!("event: {:?}", event);
-                match event {
-                    ui::Event::Submit(command) => {
-                        eprintln!("command: {}", command);
-                    }
-                    ui::Event::Exit => {
-                        eprintln!("exit");
-                        break 'main;
-                    }
-                    _ => (),
-                }
-            }
+            widget::Canvas::new()
+                .color(color::BLACK)
+                .flow_down(&[
+                    (
+                        self.ids.input_canvas,
+                        widget::Canvas::new()
+                            .color(color::BLACK)
+                            .length_weight(0.25)
+                            .parent(self.ids.main_canvas),
+                    ),
+                    (
+                        self.ids.output_canvas,
+                        widget::Canvas::new()
+                            .color(color::BLACK)
+                            .border(2.0)
+                            .border_color(color::WHITE)
+                            .scroll_kids_vertically()
+                            .parent(self.ids.main_canvas),
+                    ),
+                ]).set(self.ids.main_canvas, &mut ui_cell);
 
-            {
-                let mut ui_cell: conrod::UiCell = self.ui.set_widgets();
+            widget::Scrollbar::y_axis(self.ids.output_canvas)
+                .auto_hide(true)
+                .set(self.ids.scrollbar, &mut ui_cell);
 
-                widget::Canvas::new()
-                    .scroll_kids_vertically()
-                    .color(color::BLACK)
-                    .set(self.ids.canvas, &mut ui_cell);
+            self.input_view.update(&mut ui_cell);
+            self.output_view.update(&mut ui_cell);
+        }
 
-                widget::Scrollbar::y_axis(self.ids.canvas)
-                    .auto_hide(true)
-                    .set(self.ids.scrollbar, &mut ui_cell);
-
-                self.input_view.update(&mut ui_cell);
-                self.output_view.update(&mut ui_cell);
-            }
-
-            if let Some(primitives) = self.ui.draw_if_changed() {
-                self.renderer
-                    .fill(&self.display, primitives, &self.image_map);
-                let mut target = self.display.draw();
-                target.clear_color(0.0, 0.0, 0.0, 1.0);
-                self.renderer
-                    .draw(&self.display, &mut target, &self.image_map)
-                    .unwrap();
-                target.finish().unwrap();
-            }
+        if let Some(primitives) = self.ui.draw_if_changed() {
+            self.renderer
+                .fill(&self.display, primitives, &self.image_map);
+            let mut target = self.display.draw();
+            target.clear_color(0.0, 0.0, 0.0, 1.0);
+            self.renderer
+                .draw(&self.display, &mut target, &self.image_map)
+                .unwrap();
+            target.finish().unwrap();
         }
 
         return Ok(());
@@ -190,25 +195,35 @@ impl Ui for Conrod {
             events.push(event);
         });
 
-        if events.is_empty() {
-            self.events_loop.run_forever(|event| {
-                events.push(event);
-                glium::glutin::ControlFlow::Break
-            });
-        }
+        // TODO move idle check somewhere else
+        // if events.is_empty() {
+        //     self.events_loop.run_forever(|event| {
+        //         events.push(event);
+        //         glium::glutin::ControlFlow::Break
+        //     });
+        // }
 
         for event in events {
-            if let Some(event) = conrod::backend::winit::convert_event(event.clone(), &self.display)
-            {
-                self.ui.handle_event(event);
-            }
-
-            match self.process_event(&event) {
-                Some(event) => app_events.push(event),
-                None => (),
+            let input_captured = match self.process_event(&event) {
+                Some((app_event, capture)) => {
+                    app_events.push(app_event);
+                    capture
+                }
+                None => false,
+            };
+            if !input_captured {
+                if let Some(event) =
+                    conrod::backend::winit::convert_event(event.clone(), &self.display)
+                {
+                    self.ui.handle_event(event);
+                }
             }
         }
 
         return app_events;
+    }
+
+    fn set_output(&mut self, string: &str) {
+        self.output_view.set_text(string);
     }
 }
