@@ -44,6 +44,7 @@ impl Update for Text {
                 .left_justify()
                 .line_spacing(2.5)
                 .restrict_to_height(false)
+                .parent(self.parent)
                 .set(self.id, ui_cell)
             {
                 Some(edited) => self.text = edited,
@@ -52,6 +53,7 @@ impl Update for Text {
         } else {
             widget::Text::new(self.text.as_str())
                 .color(color::BLUE)
+                .parent(self.parent)
                 .padded_w_of(self.parent, 16.0)
                 .set(self.id, ui_cell)
         }

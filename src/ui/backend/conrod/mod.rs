@@ -9,7 +9,7 @@ use conrod::backend::glium::glium::glutin::{
 use conrod::backend::glium::glium::texture::Texture2d;
 use conrod::glium::Surface;
 use conrod::text::Font;
-use conrod::{color, image, widget, Colorable, UiCell, Widget};
+use conrod::{color, image, widget, Borderable, Colorable, UiCell, Widget};
 
 use super::{load_font, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_TITLE};
@@ -20,7 +20,15 @@ use ui::TextView;
 use self::text::Text;
 
 widget_ids! {
-    struct Ids { canvas, command_input, command_output, scrollbar }
+    struct Ids {
+        main_canvas,
+        input_canvas,
+        output_canvas,
+
+        command_input,
+        command_output,
+        scrollbar
+    }
 }
 
 pub struct Conrod {
@@ -73,8 +81,8 @@ impl Conrod {
             })?;
         ui.fonts.insert(font);
 
-        let input_view = Text::new(ids.command_input, ids.canvas, true);
-        let output_view = Text::new(ids.command_output, ids.canvas, false);
+        let input_view = Text::new(ids.command_input, ids.input_canvas, true);
+        let output_view = Text::new(ids.command_output, ids.output_canvas, false);
 
         return Ok(Conrod {
             display: display,
@@ -136,11 +144,26 @@ impl Ui for Conrod {
             let mut ui_cell: conrod::UiCell = self.ui.set_widgets();
 
             widget::Canvas::new()
-                .scroll_kids_vertically()
                 .color(color::BLACK)
-                .set(self.ids.canvas, &mut ui_cell);
+                .flow_down(&[
+                    (
+                        self.ids.input_canvas,
+                        widget::Canvas::new()
+                            .color(color::BLUE)
+                            .parent(self.ids.main_canvas),
+                    ),
+                    (
+                        self.ids.output_canvas,
+                        widget::Canvas::new()
+                            .color(color::BLACK)
+                            .border(2.0)
+                            .border_color(color::GRAY)
+                            .scroll_kids_vertically()
+                            .parent(self.ids.main_canvas),
+                    ),
+                ]).set(self.ids.main_canvas, &mut ui_cell);
 
-            widget::Scrollbar::y_axis(self.ids.canvas)
+            widget::Scrollbar::y_axis(self.ids.output_canvas)
                 .auto_hide(true)
                 .set(self.ids.scrollbar, &mut ui_cell);
 

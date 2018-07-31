@@ -1,12 +1,11 @@
 use std::io;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Output, Stdio};
+use std::process::{ChildStdin, Command, Stdio};
 use std::sync::mpsc::channel;
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread::spawn;
-
-type Error = String;
+use std::thread::JoinHandle;
 
 pub trait AsyncShell {
     type Buffer;
@@ -16,8 +15,7 @@ pub trait AsyncShell {
 }
 
 pub struct Shell {
-    bin_path: PathBuf,
-    process: Child,
+    child: JoinHandle<()>,
     stdin: ChildStdin,
     stdout: Receiver<String>,
 }
@@ -35,7 +33,8 @@ impl Shell {
 
         let (output_tx, output_rx) = channel();
 
-        let thread = spawn(move || {
+        // TODO join properly
+        let thread_handle = spawn(move || {
             let stdout = BufReader::new(stdout);
             for line in stdout.lines() {
                 match line {
@@ -46,8 +45,7 @@ impl Shell {
         });
 
         return Shell {
-            bin_path: bin_path,
-            process: child,
+            child: thread_handle,
             stdin: stdin,
             stdout: output_rx,
         };
@@ -70,11 +68,12 @@ impl Shell {
         }
     }
 
-    // TODO safely exit
-    // pub fn exit(mut self) -> io::Result<()> {
-    // }
-}
-
-fn not_found_error(msg: &str) -> io::Error {
-    return io::Error::new(io::ErrorKind::NotFound, msg);
+    pub fn exit(mut self) -> io::Result<()> {
+        return self.child.join().map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("unable to join child:\n{:?}", e),
+            )
+        });
+    }
 }

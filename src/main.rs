@@ -16,6 +16,7 @@ use app::App;
 
 use constants::DEFAULT_FONT;
 
+use shell::Shell;
 use ui::backend::conrod::Conrod;
 use ui::Config;
 
@@ -26,7 +27,10 @@ fn main() -> Result<(), String> {
         config.graphics.vsync.unwrap_or(false),
     ).expect("could not create ui");
 
-    let app = App::new(config, ui);
+    let shell_path = config.shell.path.clone();
+    let shell = Shell::new(shell_path.into());
+
+    let app = App::new(shell, ui);
 
     return app.run();
 }
