@@ -149,7 +149,8 @@ impl Ui for Conrod {
                     (
                         self.ids.input_canvas,
                         widget::Canvas::new()
-                            .color(color::BLUE)
+                            .color(color::BLACK)
+                            .length_weight(0.25)
                             .parent(self.ids.main_canvas),
                     ),
                     (
@@ -157,7 +158,7 @@ impl Ui for Conrod {
                         widget::Canvas::new()
                             .color(color::BLACK)
                             .border(2.0)
-                            .border_color(color::GRAY)
+                            .border_color(color::WHITE)
                             .scroll_kids_vertically()
                             .parent(self.ids.main_canvas),
                     ),
@@ -201,14 +202,14 @@ impl Ui for Conrod {
         }
 
         for event in events {
-            let capture = match self.process_event(&event) {
+            let input_captured = match self.process_event(&event) {
                 Some((app_event, capture)) => {
                     app_events.push(app_event);
                     capture
                 }
                 None => false,
             };
-            if !capture {
+            if !input_captured {
                 if let Some(event) =
                     conrod::backend::winit::convert_event(event.clone(), &self.display)
                 {
