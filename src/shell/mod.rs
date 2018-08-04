@@ -1,9 +1,10 @@
 use std::io;
 use std::io::{BufRead, BufReader, Write};
+use std::iter::Take;
 use std::path::PathBuf;
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::mpsc::channel;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, TryIter};
 use std::thread::spawn;
 use std::thread::JoinHandle;
 
@@ -36,6 +37,8 @@ impl Shell {
         // TODO join properly
         let thread_handle = spawn(move || {
             let stdout = BufReader::new(stdout);
+
+            // TODO parsing lines is taking a while
             for line in stdout.lines() {
                 match line {
                     Ok(line) => output_tx.send(line).expect("could not send output"),
@@ -55,17 +58,8 @@ impl Shell {
         return self.stdin.write_all(command.as_ref());
     }
 
-    pub fn poll_output(&self) -> Option<String> {
-        match self.stdout.try_recv() {
-            Ok(line) => return Some(line),
-            Err(e) => match e {
-                TryRecvError::Empty => return None,
-                TryRecvError::Disconnected => {
-                    eprintln!("warning: output thread is disconnected");
-                    return None;
-                }
-            },
-        }
+    pub fn poll_output(&self, lines: usize) -> Take<TryIter<String>> {
+        return self.stdout.try_iter().take(lines);
     }
 
     pub fn exit(mut self) -> io::Result<()> {

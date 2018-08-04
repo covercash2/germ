@@ -48,6 +48,7 @@ pub trait Update {
 }
 
 impl Conrod {
+    // TODO change name to fit semantics
     pub fn new(font_family: String, vsync: bool) -> Result<Self, String> {
         let events_loop = EventsLoop::new();
         let window = glutin::WindowBuilder::new()
@@ -194,12 +195,13 @@ impl Ui for Conrod {
             events.push(event);
         });
 
-        if events.is_empty() {
-            self.events_loop.run_forever(|event| {
-                events.push(event);
-                glium::glutin::ControlFlow::Break
-            });
-        }
+        // TODO move idle check somewhere else
+        // if events.is_empty() {
+        //     self.events_loop.run_forever(|event| {
+        //         events.push(event);
+        //         glium::glutin::ControlFlow::Break
+        //     });
+        // }
 
         for event in events {
             let input_captured = match self.process_event(&event) {

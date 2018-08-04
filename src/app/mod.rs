@@ -43,14 +43,10 @@ impl<U: Ui> App<U> {
                 }
             }
 
-            // TODO more than one line per frame
-            match self.shell.poll_output() {
-                Some(line) => {
-                    string_buffer.push_str(&line);
-                    // TODO ugly
-                    string_buffer.push('\n');
-                }
-                None => (),
+            for string in self.shell.poll_output(16) {
+                string_buffer.push_str(&string);
+                // TODO ugly
+                string_buffer.push('\n');
             }
 
             self.ui.set_output(&string_buffer);
