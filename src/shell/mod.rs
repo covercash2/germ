@@ -8,6 +8,8 @@ use std::sync::mpsc::{Receiver, Sender, TryIter, TryRecvError};
 use std::thread::spawn;
 use std::thread::JoinHandle;
 
+mod stream;
+
 pub trait AsyncShell {
     type Buffer;
     type Error;
@@ -48,6 +50,8 @@ impl Shell {
                 }
             }
         });
+
+        let stderr_stream = stream::spawn_stream(stderr);
 
         // let stderr_handle = spawn(move || {
         //     let stderr = BufReader::new(stderr);
