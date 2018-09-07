@@ -43,10 +43,17 @@ impl<U: Ui> App<U> {
                 }
             }
 
-            for string in self.shell.poll_output(16) {
-                string_buffer.push_str(&string);
-                // TODO ugly
-                string_buffer.push('\n');
+            match self.shell.poll_output() {
+                Ok(Some(string)) => {
+                    // append output to output view buffer
+                    string_buffer.push_str(&string);
+                }
+                Ok(None) => {
+                    // stream is intact, but has not output
+                }
+                Err(e) => {
+                    return Err(format!("could not read output:\n{}", e));
+                }
             }
 
             self.ui.set_output(&string_buffer);

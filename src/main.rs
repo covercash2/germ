@@ -28,7 +28,7 @@ fn main() -> Result<(), String> {
     ).expect("could not create ui");
 
     let shell_path = config.shell.path.clone();
-    let shell = Shell::new(shell_path.into());
+    let shell = Shell::create(shell_path.into());
 
     let app = App::new(shell, ui);
 
