@@ -3,7 +3,7 @@ family = "Input Mono"
 size = 13
 
 [graphics]
-vsync = false
+vsync = true
 
 [shell]
 path = "/bin/bash"

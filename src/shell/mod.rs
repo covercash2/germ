@@ -10,13 +10,6 @@ use std::thread::JoinHandle;
 
 mod stream;
 
-pub trait AsyncShell {
-    type Buffer;
-    type Error;
-    fn send(&mut self, command: &str) -> Result<(), Self::Error>;
-    fn receive(&self) -> Result<Self::Buffer, Self::Error>;
-}
-
 pub struct Shell {
     stdin: ChildStdin,
     stdout: stream::StringStream,

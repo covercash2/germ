@@ -2,6 +2,8 @@ use config::Config;
 use shell::Shell;
 use ui::{Event, Ui};
 
+use std::time::Instant;
+
 type Error = String;
 
 pub struct App<U: Ui> {
@@ -21,6 +23,7 @@ impl<U: Ui> App<U> {
         let mut string_buffer = String::new();
 
         'main: loop {
+            let frame_start = Instant::now();
             for event in self.ui.events() {
                 match event {
                     Event::Submit(command) => {
@@ -61,6 +64,11 @@ impl<U: Ui> App<U> {
             match self.ui.draw() {
                 Ok(()) => (),
                 Err(e) => return Err(format!("error drawing ui:\n{}", e)),
+            }
+
+            let fps = 1_000_000_000.0 / frame_start.elapsed().subsec_nanos() as f64;
+            if fps < 20.0 {
+                eprintln!("fps: {}", fps);
             }
         }
     }
