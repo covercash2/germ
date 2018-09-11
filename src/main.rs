@@ -12,13 +12,11 @@ mod constants;
 mod shell;
 mod ui;
 
-use app::App;
-
 use constants::DEFAULT_FONT;
 
 use shell::Shell;
 use ui::backend::conrod::Conrod;
-use ui::Config;
+use ui::{Config, Ui};
 
 fn main() -> Result<(), String> {
     let config: Config = Config::default();
@@ -30,7 +28,5 @@ fn main() -> Result<(), String> {
     let shell_path = config.shell.path.clone();
     let shell = Shell::create(shell_path.into());
 
-    let app = App::new(shell, ui);
-
-    return app.run();
+    return ui.run(shell);
 }

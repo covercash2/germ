@@ -1,5 +1,7 @@
 pub mod text;
 
+use std::time::Instant;
+
 use conrod;
 use conrod::backend::glium::glium;
 use conrod::backend::glium::glium::glutin;
@@ -14,10 +16,14 @@ use conrod::{color, image, widget, Borderable, Colorable, UiCell, Widget};
 use super::{load_font, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_TITLE};
 
+use shell::Shell;
+
 use ui;
 use ui::TextView;
 
 use self::text::Text;
+
+type Error = String;
 
 widget_ids! {
     struct Ids {
@@ -97,47 +103,6 @@ impl Conrod {
             output_view: output_view,
         });
     }
-
-    /// convert glutin event into app level event
-    /// returns an event and whether to capture it
-    fn process_event(&mut self, event: &Event) -> Option<(ui::Event, bool)> {
-        match *event {
-            Event::WindowEvent { ref event, .. } => match event {
-                // closed or ESC pressed
-                WindowEvent::Closed
-                | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => Some((ui::Event::Exit, false)),
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            modifiers:
-                                ModifiersState {
-                                    shift: true,
-                                    ctrl: false,
-                                    alt: false,
-                                    logo: false,
-                                },
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Return),
-                            ..
-                        },
-                    ..
-                } => Some((ui::Event::Submit(self.input_view.submit()), true)),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-}
-
-impl Ui for Conrod {
-    type Events = Vec<ui::Event>;
 
     fn draw(&mut self) -> Result<(), String> {
         // put ui in a memory cage and draw elements
@@ -221,6 +186,95 @@ impl Ui for Conrod {
         }
 
         return app_events;
+    }
+
+    /// convert glutin event into app level event
+    /// returns an event and whether to capture it
+    fn process_event(&mut self, event: &Event) -> Option<(ui::Event, bool)> {
+        match *event {
+            Event::WindowEvent { ref event, .. } => match event {
+                // closed or ESC pressed
+                WindowEvent::Closed
+                | WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                            ..
+                        },
+                    ..
+                } => Some((ui::Event::Exit, false)),
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            modifiers:
+                                ModifiersState {
+                                    shift: true,
+                                    ctrl: false,
+                                    alt: false,
+                                    logo: false,
+                                },
+                            state: ElementState::Pressed,
+                            virtual_keycode: Some(VirtualKeyCode::Return),
+                            ..
+                        },
+                    ..
+                } => Some((ui::Event::Submit(self.input_view.submit()), true)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+impl Ui for Conrod {
+    type Events = Vec<ui::Event>;
+
+    fn run(mut self, mut shell: Shell) -> Result<(), Error> {
+        let mut string_buffer = String::new();
+
+        'main: loop {
+            let frame_start = Instant::now();
+            for event in self.events() {
+                match event {
+                    ui::Event::Submit(command) => {
+                        eprintln!("submitted: {:?}", command);
+
+                        // TODO sanitize commands
+                        let mut command = String::from(command);
+                        if !command.ends_with('\n') {
+                            command.push('\n');
+                        }
+
+                        shell.execute(&command).expect("could not execute command");
+
+                        string_buffer.clear();
+                    }
+                    ui::Event::Exit => return Ok(()),
+                }
+            }
+
+            match shell.poll_output() {
+                Ok(Some(string)) => {
+                    string_buffer.push_str(&string);
+                }
+                Err(e) => {
+                    return Err(format!("could not read output:\n{}", e));
+                }
+                _ => {}
+            }
+
+            self.set_output(&string_buffer);
+
+            match self.draw() {
+                Ok(()) => (),
+                Err(e) => return Err(format!("error drawing ui:\n{}", e)),
+            }
+
+            let fps = 1_000_000_000.0 / frame_start.elapsed().subsec_nanos() as f64;
+            if fps < 20.0 {
+                eprintln!("fps: {}", fps);
+            }
+        }
     }
 
     fn set_output(&mut self, string: &str) {

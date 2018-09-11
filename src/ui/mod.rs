@@ -6,11 +6,14 @@ use font_loader::system_fonts::FontPropertyBuilder;
 pub use super::config::Config;
 pub use super::constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
+use shell::Shell;
+
+type Error = String;
+
 pub trait Ui {
     type Events: IntoIterator<Item = Event>;
 
-    fn draw(&mut self) -> Result<(), String>;
-    fn events(&mut self) -> Self::Events;
+    fn run(mut self, shell: Shell) -> Result<(), Error>;
     fn set_output(&mut self, string: &str);
 }
 
