@@ -1,5 +1,6 @@
 pub mod text;
 
+use std::io::Write;
 use std::time::Instant;
 
 use conrod;
@@ -16,6 +17,7 @@ use conrod::{color, image, widget, Borderable, Colorable, UiCell, Widget};
 use super::{load_font, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_TITLE};
 
+use shell::stream::LockStream;
 use shell::Shell;
 
 use ui;
@@ -236,6 +238,11 @@ impl Ui for Conrod {
     fn run(mut self, mut shell: Shell) -> Result<(), Self::Error> {
         let mut string_buffer = String::new();
 
+        let stdout_stream =
+            LockStream::spawn(shell.stdout().expect("could not get stdout from shell"));
+        let stderr_stream =
+            LockStream::spawn(shell.stderr().expect("could not get stdout from shell"));
+
         'main: loop {
             let frame_start = Instant::now();
             for event in self.events() {
@@ -249,7 +256,9 @@ impl Ui for Conrod {
                             command.push('\n');
                         }
 
-                        shell.execute(&command).expect("could not execute command");
+                        shell
+                            .write_all(command.as_bytes())
+                            .expect("could not execute command");
 
                         string_buffer.clear();
                     }
@@ -258,7 +267,7 @@ impl Ui for Conrod {
                 }
             }
 
-            match shell.poll_output() {
+            match stdout_stream.poll_output() {
                 Ok(Some(string)) => {
                     string_buffer.push_str(&string);
                 }

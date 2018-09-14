@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
@@ -80,7 +81,7 @@ impl Ui for Gtk {
                 match process_key_event(view, key) {
                     ui::Event::Submit(string) => {
                         eprintln!("submitted: {}", string);
-                        shell.borrow_mut().execute(&string);
+                        shell.borrow_mut().write_all(string.as_bytes());
                     }
                     _ => (),
                 }

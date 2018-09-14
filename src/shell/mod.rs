@@ -2,18 +2,27 @@ use std::io;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::iter::Take;
 use std::path::PathBuf;
-use std::process::{ChildStdin, Command, Stdio};
+use std::process::{ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Receiver, Sender, TryIter, TryRecvError};
 use std::thread::spawn;
 use std::thread::JoinHandle;
 
-mod stream;
+pub mod stream;
 
 pub struct Shell {
     stdin: ChildStdin,
-    stdout: stream::LockStream,
-    stderr: stream::LockStream,
+    stdout: Option<ChildStdout>,
+    stderr: Option<ChildStderr>,
+}
+
+impl Write for Shell {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        return self.stdin.write(buf);
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        return self.stdin.flush();
+    }
 }
 
 impl Shell {
@@ -26,37 +35,22 @@ impl Shell {
             .expect("should work dummy");
 
         let stdin = child.stdin.take().expect("could not capture stdin");
-        let stdout = child.stdout.take().expect("could not capture stdout");
-        let stderr = child.stderr.take().expect("could not capture stderr");
-
-        let stdout_stream = stream::LockStream::spawn(stdout);
-        let stderr_stream = stream::LockStream::spawn(stderr);
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
 
         return Shell {
             stdin: stdin,
-            stdout: stdout_stream,
-            stderr: stderr_stream,
+            stdout: stdout,
+            stderr: stderr,
         };
     }
 
-    pub fn execute(&mut self, command: &str) -> io::Result<()> {
-        return self.stdin.write_all(command.as_ref());
+    pub fn stdout(&mut self) -> Result<ChildStdout, &'static str> {
+        return self.stdout.take().ok_or("stdout already taken from shell");
     }
 
-    pub fn poll_output(&self) -> io::Result<Option<String>> {
-        match self.stderr.poll_output() {
-            Ok(Some(string)) => {
-                println!("stderr: \"{}\"", string);
-            }
-            Ok(None) => {
-                // no output received
-            }
-            Err(e) => {
-                println!("error:\n{}", e);
-            }
-        }
-
-        return self.stdout.poll_output();
+    pub fn stderr(&mut self) -> Result<ChildStderr, &'static str> {
+        return self.stderr.take().ok_or("stderr already taken from shell");
     }
 
     pub fn exit(mut self) -> io::Result<()> {

@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate conrod;
 extern crate font_loader;
+extern crate futures;
 extern crate gdk;
 extern crate gio;
 extern crate glib;
@@ -15,8 +16,6 @@ mod config;
 mod constants;
 mod shell;
 mod ui;
-
-use constants::DEFAULT_FONT;
 
 use shell::Shell;
 use ui::backend::gtk::Gtk;

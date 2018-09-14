@@ -2,13 +2,9 @@ use std::io;
 use std::io::{BufRead, BufReader, Read};
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::thread::{spawn, JoinHandle};
-
 use std::time::Instant;
 
-trait OutputStream {
-    type Buffer;
-    fn get_output(&mut self) -> Self::Buffer;
-}
+use futures::Stream;
 
 pub struct LockStream {
     thread_handle: JoinHandle<Result<(), io::Error>>,
