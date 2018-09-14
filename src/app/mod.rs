@@ -19,10 +19,6 @@ impl<U: Ui> App<U> {
         };
     }
 
-    pub fn run(mut self) -> Result<(), Error> {
-        return self.ui.run(self.shell);
-    }
-
     fn exit(self) -> Result<(), Error> {
         return Err("not implemented".into());
     }

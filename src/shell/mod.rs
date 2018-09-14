@@ -12,8 +12,8 @@ mod stream;
 
 pub struct Shell {
     stdin: ChildStdin,
-    stdout: stream::StringStream,
-    stderr: stream::StringStream,
+    stdout: stream::LockStream,
+    stderr: stream::LockStream,
 }
 
 impl Shell {
@@ -29,8 +29,8 @@ impl Shell {
         let stdout = child.stdout.take().expect("could not capture stdout");
         let stderr = child.stderr.take().expect("could not capture stderr");
 
-        let stdout_stream = stream::StringStream::spawn(stdout);
-        let stderr_stream = stream::StringStream::spawn(stderr);
+        let stdout_stream = stream::LockStream::spawn(stdout);
+        let stderr_stream = stream::LockStream::spawn(stderr);
 
         return Shell {
             stdin: stdin,

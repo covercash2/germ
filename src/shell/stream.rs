@@ -5,13 +5,18 @@ use std::thread::{spawn, JoinHandle};
 
 use std::time::Instant;
 
-pub struct StringStream {
+trait OutputStream {
+    type Buffer;
+    fn get_output(&mut self) -> Self::Buffer;
+}
+
+pub struct LockStream {
     thread_handle: JoinHandle<Result<(), io::Error>>,
     receiver: Receiver<String>,
     lock: Sender<()>,
 }
 
-impl StringStream {
+impl LockStream {
     pub fn spawn<R: Read + Send + 'static>(readable: R) -> Self {
         let (stream_tx, stream_rx) = channel();
         let (lock_tx, lock_rx) = channel();
@@ -25,7 +30,7 @@ impl StringStream {
             }
         });
 
-        return StringStream {
+        return LockStream {
             thread_handle: thread_handle,
             receiver: stream_rx,
             lock: lock_tx,

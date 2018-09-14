@@ -188,6 +188,10 @@ impl Conrod {
         return app_events;
     }
 
+    fn set_output(&mut self, string: &str) {
+        self.output_view.set_text(string);
+    }
+
     /// convert glutin event into app level event
     /// returns an event and whether to capture it
     fn process_event(&mut self, event: &Event) -> Option<(ui::Event, bool)> {
@@ -227,9 +231,9 @@ impl Conrod {
 }
 
 impl Ui for Conrod {
-    type Events = Vec<ui::Event>;
+    type Error = String;
 
-    fn run(mut self, mut shell: Shell) -> Result<(), Error> {
+    fn run(mut self, mut shell: Shell) -> Result<(), Self::Error> {
         let mut string_buffer = String::new();
 
         'main: loop {
@@ -250,6 +254,7 @@ impl Ui for Conrod {
                         string_buffer.clear();
                     }
                     ui::Event::Exit => return Ok(()),
+                    _ => (),
                 }
             }
 
@@ -275,9 +280,5 @@ impl Ui for Conrod {
                 eprintln!("fps: {}", fps);
             }
         }
-    }
-
-    fn set_output(&mut self, string: &str) {
-        self.output_view.set_text(string);
     }
 }

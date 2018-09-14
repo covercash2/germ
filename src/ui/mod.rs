@@ -11,10 +11,8 @@ use shell::Shell;
 type Error = String;
 
 pub trait Ui {
-    type Events: IntoIterator<Item = Event>;
-
-    fn run(mut self, shell: Shell) -> Result<(), Error>;
-    fn set_output(&mut self, string: &str);
+    type Error;
+    fn run(self, shell: Shell) -> Result<(), Self::Error>;
 }
 
 pub trait TextView {
@@ -26,6 +24,7 @@ pub trait TextView {
 pub enum Event {
     Submit(String),
     Exit,
+    None,
 }
 
 pub fn load_font(family: &str) -> Result<Vec<u8>, String> {
