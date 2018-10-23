@@ -10,6 +10,8 @@ use std::thread::JoinHandle;
 
 mod stream;
 
+type ShellError = ::std::option::NoneError;
+
 pub struct Shell {
     stdin: ChildStdin,
     stdout: stream::StringStream,
@@ -17,7 +19,7 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn create(bin_path: PathBuf) -> Shell {
+    pub fn create(bin_path: PathBuf) -> Result<Shell, ShellError> {
         let mut child = Command::new(&bin_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -25,18 +27,18 @@ impl Shell {
             .spawn()
             .expect("should work dummy");
 
-        let stdin = child.stdin.take().expect("could not capture stdin");
-        let stdout = child.stdout.take().expect("could not capture stdout");
-        let stderr = child.stderr.take().expect("could not capture stderr");
+        let stdin = child.stdin.take()?;
+        let stdout = child.stdout.take()?;
+        let stderr = child.stderr.take()?;
 
         let stdout_stream = stream::StringStream::spawn(stdout);
         let stderr_stream = stream::StringStream::spawn(stderr);
 
-        return Shell {
+        return Ok(Shell {
             stdin: stdin,
             stdout: stdout_stream,
             stderr: stderr_stream,
-        };
+        });
     }
 
     pub fn execute(&mut self, command: &str) -> io::Result<()> {
@@ -61,5 +63,71 @@ impl Shell {
 
     pub fn exit(mut self) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::Other, "not implemented"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::io;
+
+    use test::Bencher;
+
+    const BASH_SHELL_PATH: &str = "/bin/bash";
+
+    fn test_shell() -> Shell {
+        return Shell::create(BASH_SHELL_PATH.into()).expect("could not create test `bash` shell");
+    }
+
+    #[test]
+    fn test_create() {
+        test_shell();
+    }
+
+    fn hello_world(shell: &mut Shell) -> io::Result<()> {
+        shell.execute("echo hello world\n");
+
+        let expected_output = "hello world\n";
+
+        let mut buffer: String = String::new();
+
+        let max_iters = 10000;
+        let mut iters = 0;
+
+        while (!buffer.eq(&expected_output)) {
+            iters += 1;
+            if (iters >= max_iters) {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("too many iterations\nbuffer: {}", buffer),
+                ));
+            }
+
+            match shell.poll_output() {
+                Ok(output) => output.map(|s| {
+                    buffer.push_str(&s);
+                }),
+                Err(ioerr) => return Err(ioerr),
+            };
+        }
+
+        return Ok(());
+    }
+
+    #[test]
+    fn test_hello_world() {
+        hello_world(&mut test_shell()).expect("could not run hello world");
+    }
+
+    #[bench]
+    fn bench_send(bencher: &mut Bencher) {
+        let mut shell: Shell = test_shell();
+
+        let expected_output: String = "hello world".into();
+
+        bencher.iter(|| {
+            hello_world(&mut shell);
+        })
     }
 }

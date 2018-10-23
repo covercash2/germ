@@ -1,3 +1,7 @@
+#![feature(test)]
+#![feature(try_trait)]
+
+extern crate test;
 #[macro_use]
 extern crate conrod;
 extern crate font_loader;
@@ -25,10 +29,11 @@ fn main() -> Result<(), String> {
     let ui: Conrod = Conrod::new(
         config.font.family.clone().unwrap_or(DEFAULT_FONT.into()),
         config.graphics.vsync.unwrap_or(false),
-    ).expect("could not create ui");
+    )
+    .expect("could not create ui");
 
     let shell_path = config.shell.path.clone();
-    let shell = Shell::create(shell_path.into());
+    let shell = Shell::create(shell_path.into()).expect("could not create shell");
 
     let app = App::new(shell, ui);
 

@@ -59,13 +59,14 @@ fn send_output(
     ref mut reader: impl BufRead,
     lock: &Receiver<()>,
     sender: &Sender<String>,
-) -> io::Result<()> {
+) -> io::Result<usize> {
     match reader.read_line(buffer) {
         Ok(bytes_read) => {
             match lock.try_recv() {
                 Ok(()) => {
                     sender.send(buffer.clone());
                     buffer.clear();
+                    return Ok(bytes_read);
                 }
                 Err(e) => {
                     match e {
@@ -73,6 +74,7 @@ fn send_output(
                             // not interrupted
                             // do nothing
                             // continue to buffer
+                            return Ok(0);
                         }
                         TryRecvError::Disconnected => {
                             return Err(io::Error::new(
@@ -86,6 +88,4 @@ fn send_output(
         }
         Err(ioerr) => return Err(ioerr),
     }
-
-    return Ok(());
 }

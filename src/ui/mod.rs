@@ -34,7 +34,7 @@ pub fn load_font(family: &str) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::load_font;
     use constants::DEFAULT_FONT;
     use font_loader::system_fonts;
