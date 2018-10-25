@@ -1,4 +1,3 @@
-use config::Config;
 use shell::Shell;
 use ui::{Event, Ui};
 

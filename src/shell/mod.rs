@@ -1,12 +1,7 @@
 use std::io;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::iter::Take;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{ChildStdin, Command, Stdio};
-use std::sync::mpsc::channel;
-use std::sync::mpsc::{Receiver, Sender, TryIter, TryRecvError};
-use std::thread::spawn;
-use std::thread::JoinHandle;
 
 use futures::{Async, Stream};
 
@@ -16,8 +11,8 @@ type ShellError = ::std::option::NoneError;
 
 pub struct Shell {
     stdin: ChildStdin,
-    stdout: stream::ByteStream,
-    stderr: stream::ByteStream,
+    stdout: stream::LockByteStream,
+    stderr: stream::LockByteStream,
 }
 
 impl Shell {
@@ -33,8 +28,8 @@ impl Shell {
         let stdout = child.stdout.take()?;
         let stderr = child.stderr.take()?;
 
-        let stdout_stream = stream::ByteStream::spawn(stdout);
-        let stderr_stream = stream::ByteStream::spawn(stderr);
+        let stdout_stream = stream::LockByteStream::spawn(stdout);
+        let stderr_stream = stream::LockByteStream::spawn(stderr);
 
         return Ok(Shell {
             stdin: stdin,

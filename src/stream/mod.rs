@@ -1,85 +1,140 @@
 use std::io;
-use std::io::{BufRead, BufReader, Read};
-use std::sync::mpsc::{channel, Receiver, SendError, Sender, TryRecvError};
+use std::io::{BufReader, Read};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, TryRecvError};
+use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
 
 use futures::{Async, Poll, Stream};
 
-pub struct ByteStream {
+struct ByteStream {
     thread_handle: JoinHandle<io::Result<()>>,
-    receiver: Receiver<Vec<u8>>,
-    lock: Sender<()>,
+    receiver: Receiver<u8>,
 }
 
 impl ByteStream {
     pub fn spawn<R: Read + Send + 'static>(readable: R) -> Self {
         let (stream_tx, stream_rx) = channel();
-        let (lock_tx, lock_rx) = channel();
 
         let thread_handle = spawn(move || {
-            let mut reader = BufReader::new(readable);
+            let reader = BufReader::new(readable);
+            let mut bytes = reader.bytes();
+
+            loop {
+                if let Some(Ok(byte)) = bytes.next() {
+                    match stream_tx.send(byte) {
+                        Err(err) => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::ConnectionAborted,
+                                format!("unable to send stream\n{}", err),
+                            ))
+                        }
+                        Ok(()) => {}
+                    }
+                }
+            }
+        });
+
+        return ByteStream {
+            thread_handle: thread_handle,
+            receiver: stream_rx,
+        };
+    }
+}
+
+impl Stream for ByteStream {
+    type Item = u8;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        match self.receiver.try_recv() {
+            Ok(t) => return Ok(Async::Ready(Some(t))),
+            Err(TryRecvError::Empty) => {
+                return Ok(Async::NotReady);
+            }
+            Err(TryRecvError::Disconnected) => {
+                return Ok(Async::Ready(None));
+            }
+        }
+    }
+}
+
+pub struct LockByteStream {
+    thread_handle: JoinHandle<io::Result<()>>,
+    receiver: Receiver<Vec<u8>>,
+    lock: Arc<AtomicBool>,
+}
+
+impl LockByteStream {
+    pub fn spawn<R: Read + Send + 'static>(readable: R) -> Self {
+        let (stream_tx, stream_rx) = channel();
+        // let (lock_tx, lock_rx) = channel();
+
+        let lock_test = Arc::new(AtomicBool::new(false));
+
+        let child_lock = lock_test.clone();
+        let thread_handle = spawn(move || {
+            let reader = BufReader::new(readable);
+
+            //let byte_stream = ByteStream::spawn(readeable);
+
             let mut buffer: Vec<u8> = Vec::new();
             let mut bytes = reader.bytes();
+            let local_lock = child_lock;
 
             loop {
                 if let Some(Ok(byte)) = bytes.next() {
                     buffer.push(byte);
                 };
 
-                // TODO
-                // match lock_rx.try_iter().last() {
-                //     Some(Ok(())) => {}
-                // }
+                if local_lock.load(Ordering::SeqCst) == true {
+                    let result = buffer.clone();
 
-                match lock_rx.try_recv() {
-                    Ok(()) => {
-                        let mut new_vec = Vec::new();
-                        new_vec.append(&mut buffer);
-                        match stream_tx.send(new_vec) {
-                            Err(err) => {
-                                return Err(io::Error::new(
-                                    io::ErrorKind::ConnectionAborted,
-                                    format!("unable to send stream\n{}", err),
-                                ))
-                            }
-                            Ok(()) => {}
+                    eprintln!(
+                        "sending buffer: {}",
+                        String::from_utf8(result.clone()).unwrap()
+                    );
+
+                    match stream_tx.send(result) {
+                        Err(err) => {
+                            return Err(io::Error::new(
+                                io::ErrorKind::ConnectionAborted,
+                                format!("unable to send stream\n{}", err),
+                            ))
+                        }
+                        Ok(()) => {
+                            // local_lock.store(false, Ordering::SeqCst);
+                            buffer.clear()
                         }
                     }
-                    Err(TryRecvError::Disconnected) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::ConnectionAborted,
-                            format!("lock channel closed"),
-                        ))
-                    }
-                    Err(TryRecvError::Empty) => {}
+                } else {
+                    eprintln!("not polled");
                 }
             }
-
-            return Ok(());
         });
 
-        return ByteStream {
+        return LockByteStream {
             thread_handle: thread_handle,
             receiver: stream_rx,
-            lock: lock_tx,
+            lock: lock_test,
         };
     }
 
-    pub fn send_buffer(&self) {
-        self.lock.send(());
-    }
+    // pub fn send_buffer(&self) {
+    //     self.lock.send(());
+    // }
 
     pub fn close(self) -> ::std::thread::Result<io::Result<()>> {
         return self.thread_handle.join();
     }
 }
 
-impl Stream for ByteStream {
+impl Stream for LockByteStream {
     type Item = Vec<u8>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.lock.send(());
+        self.lock.store(true, Ordering::SeqCst);
         match self.receiver.try_recv() {
             Ok(vec) => return Ok(Async::Ready(Some(vec))),
             Err(TryRecvError::Empty) => {
@@ -112,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_create_stream() {
-        let mut stream = ByteStream::spawn(test_readable);
+        let mut stream = LockByteStream::spawn(test_readable);
 
         let mut result: Vec<u8> = Vec::new();
         let expected = test_readable;

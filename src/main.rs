@@ -10,6 +10,7 @@ extern crate futures;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;
+extern crate volatile;
 extern crate xdg;
 
 mod app;
