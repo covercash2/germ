@@ -8,14 +8,16 @@ use std::sync::mpsc::{Receiver, Sender, TryIter, TryRecvError};
 use std::thread::spawn;
 use std::thread::JoinHandle;
 
-mod stream;
+use futures::{Async, Stream};
+
+use stream;
 
 type ShellError = ::std::option::NoneError;
 
 pub struct Shell {
     stdin: ChildStdin,
-    stdout: stream::StringStream,
-    stderr: stream::StringStream,
+    stdout: stream::ByteStream,
+    stderr: stream::ByteStream,
 }
 
 impl Shell {
@@ -31,8 +33,8 @@ impl Shell {
         let stdout = child.stdout.take()?;
         let stderr = child.stderr.take()?;
 
-        let stdout_stream = stream::StringStream::spawn(stdout);
-        let stderr_stream = stream::StringStream::spawn(stderr);
+        let stdout_stream = stream::ByteStream::spawn(stdout);
+        let stderr_stream = stream::ByteStream::spawn(stderr);
 
         return Ok(Shell {
             stdin: stdin,
@@ -45,20 +47,21 @@ impl Shell {
         return self.stdin.write_all(command.as_ref());
     }
 
-    pub fn poll_output(&self) -> io::Result<Option<String>> {
-        match self.stderr.poll_output() {
-            Ok(Some(string)) => {
-                println!("stderr: \"{}\"", string);
+    pub fn poll_stdout(&mut self) -> io::Result<Option<Vec<u8>>> {
+        match self.stdout.poll() {
+            Ok(Async::Ready(Some(result))) => {
+                return Ok(Some(result));
             }
-            Ok(None) => {
-                // no output received
+            Ok(Async::NotReady) => {
+                return Ok(None);
             }
-            Err(e) => {
-                println!("error:\n{}", e);
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::BrokenPipe,
+                    "could not access stream",
+                ));
             }
         }
-
-        return self.stdout.poll_output();
     }
 
     pub fn exit(mut self) -> io::Result<()> {

@@ -17,8 +17,6 @@ impl ByteStream {
         let (lock_tx, lock_rx) = channel();
 
         let thread_handle = spawn(move || {
-            eprintln!("thread started");
-
             let mut reader = BufReader::new(readable);
             let mut buffer: Vec<u8> = Vec::new();
             let mut bytes = reader.bytes();
@@ -28,9 +26,13 @@ impl ByteStream {
                     buffer.push(byte);
                 };
 
+                // TODO
+                // match lock_rx.try_iter().last() {
+                //     Some(Ok(())) => {}
+                // }
+
                 match lock_rx.try_recv() {
                     Ok(()) => {
-                        eprintln!("lock opened");
                         let mut new_vec = Vec::new();
                         new_vec.append(&mut buffer);
                         match stream_tx.send(new_vec) {
@@ -52,8 +54,6 @@ impl ByteStream {
                     Err(TryRecvError::Empty) => {}
                 }
             }
-
-            eprintln!("thread finished");
 
             return Ok(());
         });
@@ -79,7 +79,6 @@ impl Stream for ByteStream {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        eprintln!("polled");
         self.lock.send(());
         match self.receiver.try_recv() {
             Ok(vec) => return Ok(Async::Ready(Some(vec))),

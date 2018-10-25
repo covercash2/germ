@@ -46,14 +46,13 @@ impl<U: Ui> App<U> {
                 }
             }
 
-            match self.shell.poll_output() {
-                Ok(Some(string)) => {
-                    // append output to output view buffer
-                    string_buffer.push_str(&string);
+            match self.shell.poll_stdout() {
+                Ok(Some(vec)) => {
+                    string_buffer.push_str(
+                        ::std::str::from_utf8(&vec).expect("could not push string to buffer"),
+                    );
                 }
-                Ok(None) => {
-                    // stream is intact, but has not output
-                }
+                Ok(None) => {}
                 Err(e) => {
                     return Err(format!("could not read output:\n{}", e));
                 }
