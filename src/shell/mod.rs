@@ -85,17 +85,16 @@ mod tests {
         test_shell();
     }
 
-    fn hello_world(shell: &mut Shell) -> io::Result<()> {
-        shell.execute("echo hello world\n");
-
-        let expected_output = "hello world\n";
-
+    fn test_command_with_known_output(
+        shell: &mut Shell,
+        command: &str,
+        expected_output: &String,
+    ) -> io::Result<()> {
+        shell.execute(command);
         let mut buffer: String = String::new();
-
         let max_iters = 10000;
         let mut iters = 0;
-
-        while (!buffer.eq(&expected_output)) {
+        while (!buffer.eq(expected_output)) {
             iters += 1;
             if (iters >= max_iters) {
                 return Err(io::Error::new(
@@ -103,7 +102,6 @@ mod tests {
                     format!("too many iterations\nbuffer: {}", buffer),
                 ));
             }
-
             match shell.poll_output() {
                 Ok(output) => output.map(|s| {
                     buffer.push_str(&s);
@@ -111,8 +109,14 @@ mod tests {
                 Err(ioerr) => return Err(ioerr),
             };
         }
-
         return Ok(());
+    }
+
+    fn hello_world(shell: &mut Shell) -> io::Result<()> {
+        let expected_output = "hello world\n".to_string();
+        let command = "echo hello world\n";
+
+        return test_command_with_known_output(shell, command, &expected_output);
     }
 
     #[test]
@@ -120,11 +124,12 @@ mod tests {
         hello_world(&mut test_shell()).expect("could not run hello world");
     }
 
+    #[test]
+    fn test_usr_bin() {}
+
     #[bench]
     fn bench_send(bencher: &mut Bencher) {
         let mut shell: Shell = test_shell();
-
-        let expected_output: String = "hello world".into();
 
         bencher.iter(|| {
             hello_world(&mut shell);

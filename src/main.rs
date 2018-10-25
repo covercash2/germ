@@ -1,3 +1,4 @@
+#![feature(const_str_as_bytes)]
 #![feature(test)]
 #![feature(try_trait)]
 
@@ -5,6 +6,7 @@ extern crate test;
 #[macro_use]
 extern crate conrod;
 extern crate font_loader;
+extern crate futures;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;
@@ -14,6 +16,7 @@ mod app;
 mod config;
 mod constants;
 mod shell;
+mod stream;
 mod ui;
 
 use app::App;

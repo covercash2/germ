@@ -7,6 +7,7 @@ authors = ["Chris Overcash <covercash2@gmail.com>"]
 conrod_derive = "0.1.2"
 find_folder = "0.3.0"
 font-loader = "0.7.0"
+futures = "0.1.25"
 glium = "0.21.0"
 glutin = "0.16.0"
 rusttype = "0.6.1"
