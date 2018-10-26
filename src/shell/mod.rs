@@ -90,7 +90,7 @@ mod tests {
     ) -> io::Result<()> {
         shell.execute(command);
         let mut buffer: String = String::new();
-        let max_iters = 10000;
+        let max_iters = 1000000;
         let mut iters = 0;
         while (!buffer.eq(expected_output)) {
             iters += 1;
