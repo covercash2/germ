@@ -1,28 +1,49 @@
 use std::io;
 use std::io::{BufReader, Read};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
 
 use futures::{Async, Poll, Stream};
 
+pub enum Signal {
+    Stop,
+}
+
 struct ByteStream {
     thread_handle: JoinHandle<io::Result<()>>,
     receiver: Receiver<u8>,
+    signal_sender: Sender<Signal>,
 }
 
 impl ByteStream {
     pub fn spawn<R: Read + Send + 'static>(readable: R) -> Self {
         let (stream_tx, stream_rx) = channel();
+        let (signal_tx, signal_rx) = channel();
 
         let thread_handle = spawn(move || {
             let reader = BufReader::new(readable);
             let mut bytes = reader.bytes();
 
             loop {
-                if let Some(Ok(byte)) = bytes.next() {
-                    match stream_tx.send(byte) {
+                match signal_rx.try_recv() {
+                    Ok(Signal::Stop) => {
+                        return Ok(());
+                    }
+                    Err(TryRecvError::Disconnected) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::BrokenPipe,
+                            "signal channel is disconnected",
+                        ));
+                    }
+                    _ => {
+                        // empty signal queue
+                    }
+                }
+
+                match bytes.next() {
+                    Some(Ok(byte)) => match stream_tx.send(byte) {
                         Err(err) => {
                             return Err(io::Error::new(
                                 io::ErrorKind::ConnectionAborted,
@@ -30,7 +51,14 @@ impl ByteStream {
                             ))
                         }
                         Ok(()) => {}
+                    },
+                    Some(Err(e)) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "unable to read from stream",
+                        ));
                     }
+                    None => {}
                 }
             }
         });
@@ -38,7 +66,22 @@ impl ByteStream {
         return ByteStream {
             thread_handle: thread_handle,
             receiver: stream_rx,
+            signal_sender: signal_tx,
         };
+    }
+
+    pub fn stop(&self) -> io::Result<()> {
+        match self.signal_sender.send(Signal::Stop) {
+            Ok(()) => {}
+            Err(e) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    "signal channel is closed",
+                ));
+            }
+        }
+
+        return Ok(());
     }
 }
 
@@ -53,6 +96,7 @@ impl Stream for ByteStream {
                 return Ok(Async::NotReady);
             }
             Err(TryRecvError::Disconnected) => {
+                eprintln!("disconnected");
                 return Ok(Async::Ready(None));
             }
         }
@@ -74,27 +118,29 @@ impl LockByteStream {
 
         let child_lock = lock_test.clone();
         let thread_handle = spawn(move || {
-            let reader = BufReader::new(readable);
-
-            //let byte_stream = ByteStream::spawn(readeable);
-
+            let mut byte_stream = ByteStream::spawn(readable);
             let mut buffer: Vec<u8> = Vec::new();
-            let mut bytes = reader.bytes();
             let local_lock = child_lock;
 
             loop {
-                if let Some(Ok(byte)) = bytes.next() {
-                    buffer.push(byte);
-                };
+                match byte_stream.poll() {
+                    Ok(Async::Ready(Some(byte))) => {
+                        buffer.push(byte);
+                    }
+                    Ok(Async::NotReady) => {}
+                    Ok(Async::Ready(None)) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::ConnectionRefused,
+                            format!("unable to reach byte stream"),
+                        ));
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
 
                 if local_lock.load(Ordering::SeqCst) == true {
                     let result = buffer.clone();
-
-                    eprintln!(
-                        "sending buffer: {}",
-                        String::from_utf8(result.clone()).unwrap()
-                    );
-
                     match stream_tx.send(result) {
                         Err(err) => {
                             return Err(io::Error::new(
@@ -103,12 +149,10 @@ impl LockByteStream {
                             ))
                         }
                         Ok(()) => {
-                            // local_lock.store(false, Ordering::SeqCst);
+                            local_lock.store(false, Ordering::SeqCst);
                             buffer.clear()
                         }
                     }
-                } else {
-                    eprintln!("not polled");
                 }
             }
         });
@@ -120,9 +164,9 @@ impl LockByteStream {
         };
     }
 
-    // pub fn send_buffer(&self) {
-    //     self.lock.send(());
-    // }
+    pub fn send_buffer(&self) {
+        self.lock.store(true, Ordering::SeqCst);
+    }
 
     pub fn close(self) -> ::std::thread::Result<io::Result<()>> {
         return self.thread_handle.join();
@@ -155,15 +199,36 @@ fn debug_error<T>(msg: &'static str) -> io::Result<T> {
 mod tests {
     use super::*;
 
-    use futures::Async;
+    use futures::{Async, Future};
 
     use std::io;
     use std::io::Read;
     use std::thread::sleep;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     const test_readable: &[u8] = "hello world".as_bytes();
-    const timeout_secs: u64 = 3;
+    const SHORT_TIMEOUT_SECS: u64 = 1;
+    const TIMEOUT_SECS: u64 = 3;
+
+    #[test]
+    fn test_create_byte_stream() {
+        let mut stream = ByteStream::spawn(test_readable);
+        let mut result: Vec<u8> = Vec::new();
+        let expected = test_readable;
+
+        let start_instant = Instant::now();
+
+        sleep(Duration::from_secs(SHORT_TIMEOUT_SECS));
+        stream.stop().expect("unable to send signal to stream");
+
+        let result: Vec<u8> = stream
+            .take(expected.len() as u64)
+            .collect()
+            .wait()
+            .expect("could not collect output from stream");
+
+        assert_eq!(&result, &expected);
+    }
 
     #[test]
     fn test_create_stream() {
@@ -172,9 +237,9 @@ mod tests {
         let mut result: Vec<u8> = Vec::new();
         let expected = test_readable;
 
-        sleep(Duration::from_secs(timeout_secs / 2));
+        sleep(Duration::from_secs(SHORT_TIMEOUT_SECS));
         stream.send_buffer();
-        sleep(Duration::from_secs(timeout_secs / 2));
+        sleep(Duration::from_secs(SHORT_TIMEOUT_SECS));
 
         match stream.poll() {
             Ok(Async::Ready(Some(result))) => {

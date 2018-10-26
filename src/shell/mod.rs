@@ -100,8 +100,9 @@ mod tests {
                     format!("too many iterations\nbuffer: {}", buffer),
                 ));
             }
-            match shell.poll_output() {
+            match shell.poll_stdout() {
                 Ok(output) => output.map(|s| {
+                    let s = String::from_utf8(s).expect("could not parse shell stdout");
                     buffer.push_str(&s);
                 }),
                 Err(ioerr) => return Err(ioerr),
