@@ -6,12 +6,12 @@ use font_loader::system_fonts::FontPropertyBuilder;
 pub use super::config::Config;
 pub use super::constants::{DEFAULT_DIMENSIONS, DEFAULT_FONT, DEFAULT_TITLE};
 
-pub trait Ui {
-    type Events: IntoIterator<Item = Event>;
+use shell::Shell;
 
-    fn draw(&mut self) -> Result<(), String>;
-    fn events(&mut self) -> Self::Events;
-    fn set_output(&mut self, string: &str);
+pub trait Ui {
+    type Error: ::std::fmt::Display;
+
+    fn show(&mut self, shell: Shell) -> Result<(), Self::Error>;
 }
 
 pub trait TextView {

@@ -14,6 +14,8 @@ use conrod::{color, image, widget, Borderable, Colorable, UiCell, Widget};
 use super::{load_font, Ui};
 use constants::{DEFAULT_DIMENSIONS, DEFAULT_TITLE};
 
+use shell::Shell;
+
 use ui;
 use ui::TextView;
 
@@ -134,10 +136,6 @@ impl Conrod {
             _ => None,
         }
     }
-}
-
-impl Ui for Conrod {
-    type Events = Vec<ui::Event>;
 
     fn draw(&mut self) -> Result<(), String> {
         // put ui in a memory cage and draw elements
@@ -163,7 +161,8 @@ impl Ui for Conrod {
                             .scroll_kids_vertically()
                             .parent(self.ids.main_canvas),
                     ),
-                ]).set(self.ids.main_canvas, &mut ui_cell);
+                ])
+                .set(self.ids.main_canvas, &mut ui_cell);
 
             widget::Scrollbar::y_axis(self.ids.output_canvas)
                 .auto_hide(true)
@@ -225,5 +224,51 @@ impl Ui for Conrod {
 
     fn set_output(&mut self, string: &str) {
         self.output_view.set_text(string);
+    }
+}
+
+impl Ui for Conrod {
+    type Error = String;
+
+    fn show(&mut self, mut shell: Shell) -> Result<(), Self::Error> {
+        let mut buffer = String::new();
+
+        'main: loop {
+            for event in self.events() {
+                match event {
+                    ui::Event::Submit(command) => {
+                        eprintln!("submitted: {:?}", command);
+
+                        // TODO sanitize commands
+                        let mut command = String::from(command);
+                        if !command.ends_with('\n') {
+                            command.push('\n');
+                        }
+
+                        shell.execute(&command).expect("could not execute command");
+
+                        buffer.clear();
+                    }
+                    // break loop
+                    ui::Event::Exit => return Ok(()),
+                }
+            }
+
+            match shell.poll_stdout() {
+                Ok(Some(vec)) => {
+                    buffer.push_str(
+                        ::std::str::from_utf8(&vec).expect("could not push string to buffer"),
+                    );
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    return Err(format!("could not read output:\n{}", e));
+                }
+            }
+
+            self.set_output(&buffer);
+
+            self.draw()?;
+        } // end main loop
     }
 }

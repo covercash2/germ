@@ -13,6 +13,11 @@ extern crate toml;
 extern crate volatile;
 extern crate xdg;
 
+extern crate gdk;
+extern crate gio;
+extern crate glib;
+extern crate gtk;
+
 mod app;
 mod config;
 mod constants;
@@ -20,26 +25,22 @@ mod shell;
 mod stream;
 mod ui;
 
-use app::App;
-
-use constants::DEFAULT_FONT;
+use ui::Ui;
 
 use shell::Shell;
-use ui::backend::conrod::Conrod;
+use ui::backend::gtk::Gtk;
 use ui::Config;
+
+const DEFAULT_DIMENSIONS: [i32; 2] = [600, 600];
 
 fn main() -> Result<(), String> {
     let config: Config = Config::default();
-    let ui: Conrod = Conrod::new(
-        config.font.family.clone().unwrap_or(DEFAULT_FONT.into()),
-        config.graphics.vsync.unwrap_or(false),
-    )
-    .expect("could not create ui");
+
+    let mut ui: Gtk =
+        Gtk::create("test title".into(), DEFAULT_DIMENSIONS).expect("unable to create gtk app");
 
     let shell_path = config.shell.path.clone();
     let shell = Shell::create(shell_path.into()).expect("could not create shell");
 
-    let app = App::new(shell, ui);
-
-    return app.run();
+    return ui.show(shell);
 }
