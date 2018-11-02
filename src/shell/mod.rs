@@ -1,7 +1,7 @@
 use std::io;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 
 use futures::{Async, Stream};
 
@@ -10,6 +10,7 @@ use stream;
 type ShellError = ::std::option::NoneError;
 
 pub struct Shell {
+    child: Child,
     stdin: ChildStdin,
     stdout: stream::LockByteStream,
     stderr: stream::LockByteStream,
@@ -32,6 +33,7 @@ impl Shell {
         let stderr_stream = stream::LockByteStream::spawn(stderr);
 
         return Ok(Shell {
+            child: child,
             stdin: stdin,
             stdout: stdout_stream,
             stderr: stderr_stream,
@@ -59,8 +61,8 @@ impl Shell {
         }
     }
 
-    pub fn exit(mut self) -> io::Result<()> {
-        return Err(io::Error::new(io::ErrorKind::Other, "not implemented"));
+    pub fn exit(&mut self) -> io::Result<()> {
+        return self.child.kill();
     }
 }
 

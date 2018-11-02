@@ -1,7 +1,10 @@
 use std::cell::RefCell;
+use std::io;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
+
+use futures;
 
 use gio::prelude::*;
 use gtk::prelude::*;
@@ -10,6 +13,7 @@ use gdk;
 use gio;
 use glib;
 use gtk;
+use gtk::TextBuffer;
 
 use ui;
 
@@ -33,14 +37,54 @@ macro_rules! clone {
     );
 }
 
+#[macro_export]
+macro_rules! upgrade_weak {
+    ($x:ident, $r:expr) => {{
+        match $x.upgrade() {
+            Some(o) => o,
+            None => return $r,
+        }
+    }};
+    ($x:ident) => {
+        upgrade_weak!($x, ())
+    };
+}
+
 thread_local! (
-    static OUTPUT_BUFFER: RefCell<Option<(gtk::TextBuffer, Receiver<String>)>> = RefCell::new(None)
+    static GLOBAL_CONTEXT: RefCell<Option<Context>> = RefCell::new(None)
 );
 
 type Key = u32;
 
 const APP_ID: &str = "biz.covercash.germ";
 const KEY_ENTER: Key = 65293;
+
+struct Context {
+    stdin_buffer: TextBuffer,
+    stdout_buffer: TextBuffer,
+    shell: Shell,
+}
+
+impl Context {
+    fn create_global_context(stdin_buffer: TextBuffer, stdout_buffer: TextBuffer, shell: Shell) {
+        GLOBAL_CONTEXT.with(|global_ref| {
+            *global_ref.borrow_mut() = Some(Context {
+                stdin_buffer: stdin_buffer,
+                stdout_buffer: stdout_buffer,
+                shell: shell,
+            });
+        });
+    }
+}
+
+fn destroy_default_context() {
+    GLOBAL_CONTEXT.with(|global_ref| {
+        if let Some(ref mut context) = *global_ref.borrow_mut() {
+            context.shell.exit();
+        }
+        *global_ref.borrow_mut() = None;
+    });
+}
 
 pub struct Gtk {
     app: gtk::Application,
@@ -56,15 +100,32 @@ impl Gtk {
 impl Ui for Gtk {
     type Error = String;
     fn show(&mut self, mut shell: Shell) -> Result<(), Self::Error> {
-        let shell = Rc::new(RefCell::new(shell));
+        let builder = gtk::Builder::new_from_string(include_str!("main_window.glade"));
+        let main_window: gtk::ApplicationWindow = builder
+            .get_object("main_window")
+            .expect("could not get main window");
+
+        let input_view: gtk::TextView = builder
+            .get_object("input_view")
+            .expect("could not get input view from builder");
+
+        let stdout_view: gtk::TextView = builder
+            .get_object("output_view")
+            .expect("could not get output view from builder");
+
+        let stdout_buffer: gtk::TextBuffer = stdout_view
+            .get_buffer()
+            .expect("could not get buffer from output view");
+
+        let buffer = input_view
+            .get_buffer()
+            .expect("couldn't get input text buffer");
+
+        let buffer_clone = buffer.clone();
+
+        Context::create_global_context(buffer.clone(), stdout_buffer, shell);
 
         self.app.connect_startup(move |app| {
-            let builder = gtk::Builder::new_from_string(include_str!("main_window.glade"));
-
-            let main_window: gtk::ApplicationWindow = builder
-                .get_object("main_window")
-                .expect("could not get main window");
-
             main_window.set_application(app);
             main_window.connect_delete_event(|win, _| {
                 win.destroy();
@@ -73,31 +134,72 @@ impl Ui for Gtk {
 
             main_window.show_all();
 
-            let input_view: gtk::TextView = builder
-                .get_object("input_view")
-                .expect("could not get input view from builder");
+            input_view.connect_key_press_event(move |view, key| {
+                let mut buffer = view.get_buffer().expect("couldn't get input text buffer");
 
-            input_view.connect_key_press_event(clone!(shell => move |view, key| {
-                match process_key_event(view, key) {
-                    Some(ui::Event::Submit(string)) => {
-                        eprintln!("submitted: {}", string);
-                        shell.borrow_mut().execute(&string).expect("shell could not execute command");
-                        // TODO
-                        // figure out how to keep the enter key from making a new line
-                        view.get_buffer().unwrap().set_text("");
+                GLOBAL_CONTEXT.with(|global_ref| {
+                    if let Some(ref mut context) = *global_ref.borrow_mut() {
+                        let ref mut shell = context.shell;
+                        let ref mut buffer = context.stdin_buffer;
+
+                        match process_key_event(view, key) {
+                            Some(ui::Event::Submit(string)) => {
+                                eprintln!("submitted: {}", string);
+                                shell
+                                    .execute(&string)
+                                    .expect("shell could not execute command");
+                                // TODO
+                                // figure out how to keep the enter key from making a new line
+                                buffer.set_text("");
+                            }
+                            _ => (),
+                        }
                     }
-                    _ => (),
-                }
+                });
 
                 Inhibit(false)
-            }));
+            });
         });
 
+        gtk::idle_add(receive_stdout);
+
+        // included to suppress warnings
         self.app.connect_activate(|_| {});
 
         self.app.run(&::std::env::args().collect::<Vec<_>>());
         return Ok(());
     }
+}
+
+fn receive_stdout() -> glib::Continue {
+    return glib::Continue(GLOBAL_CONTEXT.with(|global_ref| {
+        if let Some(ref mut context) = *global_ref.borrow_mut() {
+            let ref mut shell = context.shell;
+            let ref mut stdout_buffer = context.stdout_buffer;
+
+            match shell.poll_stdout() {
+                Ok(Some(bytes)) => match ::std::str::from_utf8(&bytes) {
+                    Ok(s) => {
+                        let mut end_iter = stdout_buffer.get_end_iter();
+                        stdout_buffer.insert(&mut end_iter, s);
+                        return true;
+                    }
+                    Err(e) => {
+                        eprintln!("unable to parse string from shell output:\n{}", e);
+                        return false;
+                    }
+                },
+                Err(e) => {
+                    eprintln!("shell output stream closed:\n{}", e);
+                    return false;
+                }
+                _ => return true,
+            }
+        } else {
+            eprintln!("couldn't get context");
+            return false;
+        }
+    }));
 }
 
 fn process_key_event(text_view: &gtk::TextView, key_event: &gdk::EventKey) -> Option<ui::Event> {
@@ -114,7 +216,9 @@ fn process_key_event(text_view: &gtk::TextView, key_event: &gdk::EventKey) -> Op
                         .get_buffer()
                         .map(|buffer| {
                             let (start, end) = buffer.get_bounds();
-                            buffer.get_text(&start, &end, true).unwrap_or("".into())
+                            let mut text = buffer.get_text(&start, &end, true).unwrap_or("".into());
+                            text.push('\n');
+                            text
                         })
                         .unwrap_or("".into()),
                 ))

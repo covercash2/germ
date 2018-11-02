@@ -139,7 +139,7 @@ impl LockByteStream {
                     }
                 }
 
-                if local_lock.load(Ordering::SeqCst) == true {
+                if local_lock.load(Ordering::SeqCst) == true && !buffer.is_empty() {
                     let result = buffer.clone();
                     match stream_tx.send(result) {
                         Err(err) => {
@@ -148,11 +148,9 @@ impl LockByteStream {
                                 format!("unable to send stream\n{}", err),
                             ))
                         }
-                        Ok(()) => {
-                            local_lock.store(false, Ordering::SeqCst);
-                            buffer.clear()
-                        }
+                        Ok(()) => buffer.clear(),
                     }
+                    local_lock.store(false, Ordering::SeqCst);
                 }
             }
         });
