@@ -144,6 +144,7 @@ impl Ui for Gtk {
 
                         match process_key_event(view, key) {
                             Some(ui::Event::Submit(string)) => {
+                                eprintln!("submitted: {}", string);
                                 shell
                                     .execute(&string)
                                     .expect("shell could not execute command");

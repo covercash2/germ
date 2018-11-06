@@ -7,6 +7,7 @@ extern crate test;
 extern crate conrod;
 extern crate font_loader;
 extern crate futures;
+extern crate mio;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;

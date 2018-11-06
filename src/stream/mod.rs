@@ -1,11 +1,20 @@
 use std::io;
 use std::io::{BufReader, Read};
+use std::os::unix::io::AsRawFd;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
+use std::time::Duration;
 
 use futures::{Async, Poll, Stream};
+
+use mio::event::Evented;
+use mio::unix::EventedFd;
+use mio::Poll as EventPoll;
+use mio::{Events, PollOpt, Ready, Token};
+
+const DEFAULT_BUFFER_SIZE: usize = 64;
 
 pub enum Signal {
     Stop,
@@ -13,20 +22,41 @@ pub enum Signal {
 
 struct ByteStream {
     thread_handle: JoinHandle<io::Result<()>>,
-    receiver: Receiver<u8>,
+    receiver: Receiver<Vec<u8>>,
     signal_sender: Sender<Signal>,
 }
 
 impl ByteStream {
-    pub fn spawn<R: Read + Send + 'static>(readable: R) -> Self {
+    pub fn spawn<R: AsRawFd + Read + Send + 'static>(readable: R) -> Self {
         let (stream_tx, stream_rx) = channel();
         let (signal_tx, signal_rx) = channel();
 
         let thread_handle = spawn(move || {
-            let reader = BufReader::new(readable);
-            let mut bytes = reader.bytes();
+            let fd = readable.as_raw_fd();
+            let mut reader = BufReader::new(readable);
+            let mut result_buffer: [u8; DEFAULT_BUFFER_SIZE] = [0; DEFAULT_BUFFER_SIZE];
+
+            let event_poll = EventPoll::new().expect("could not create event poll");
+            let event_token_token = 0;
+            let event_token = Token(event_token_token);
+
+            event_poll.register(
+                &EventedFd(&fd),
+                event_token,
+                Ready::readable(),
+                PollOpt::level(),
+            )?;
+
+            const EVENTS_CAPACITY: usize = 8;
+
+            let mut events = Events::with_capacity(EVENTS_CAPACITY);
 
             loop {
+                // TODO magic numbers
+                event_poll
+                    .poll(&mut events, Some(Duration::from_millis(10)))
+                    .expect("unable to poll for events");
+
                 match signal_rx.try_recv() {
                     Ok(Signal::Stop) => {
                         return Ok(());
@@ -42,23 +72,30 @@ impl ByteStream {
                     }
                 }
 
-                match bytes.next() {
-                    Some(Ok(byte)) => match stream_tx.send(byte) {
-                        Err(err) => {
-                            return Err(io::Error::new(
-                                io::ErrorKind::ConnectionAborted,
-                                format!("unable to send stream\n{}", err),
-                            ))
+                for event in events.iter() {
+                    if event.token() == event_token && event.readiness() == Ready::readable() {
+                        match reader.read(&mut result_buffer) {
+                            Ok(0) => {
+                                // nothing read
+                            }
+                            Ok(bytes_read) => {
+                                // send buffer
+                                if let Err(err) =
+                                    stream_tx.send(Vec::from(&result_buffer[..bytes_read]))
+                                {
+                                    return Err(io::Error::new(
+                                        io::ErrorKind::ConnectionAborted,
+                                        format!("unable to send stream\n{}", err),
+                                    ));
+                                }
+                            }
+                            Err(e) => {
+                                return Err(e);
+                            }
                         }
-                        Ok(()) => {}
-                    },
-                    Some(Err(e)) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "unable to read from stream",
-                        ));
+                    } else {
+                        unreachable!()
                     }
-                    None => {}
                 }
             }
         });
@@ -86,7 +123,7 @@ impl ByteStream {
 }
 
 impl Stream for ByteStream {
-    type Item = u8;
+    type Item = Vec<u8>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -96,7 +133,6 @@ impl Stream for ByteStream {
                 return Ok(Async::NotReady);
             }
             Err(TryRecvError::Disconnected) => {
-                eprintln!("disconnected");
                 return Ok(Async::Ready(None));
             }
         }
@@ -110,7 +146,7 @@ pub struct LockByteStream {
 }
 
 impl LockByteStream {
-    pub fn spawn<R: Read + Send + 'static>(readable: R) -> Self {
+    pub fn spawn<R: AsRawFd + Read + Send + 'static>(readable: R) -> Self {
         let (stream_tx, stream_rx) = channel();
         // let (lock_tx, lock_rx) = channel();
 
@@ -124,8 +160,8 @@ impl LockByteStream {
 
             loop {
                 match byte_stream.poll() {
-                    Ok(Async::Ready(Some(byte))) => {
-                        buffer.push(byte);
+                    Ok(Async::Ready(Some(mut bytes))) => {
+                        buffer.append(&mut bytes);
                     }
                     Ok(Async::NotReady) => {}
                     Ok(Async::Ready(None)) => {
