@@ -73,14 +73,14 @@ impl ByteStream {
                 }
 
                 for event in events.iter() {
-                    eprintln!("event: {:?}", event);
+                    debug!("event: {:?}", event);
                     if event.token() == event_token && event.readiness().is_readable() {
                         match read(&mut reader, &mut result_buffer) {
                             Ok(None) => {
-                                eprintln!("nothing read");
+                                debug!("nothing read");
                             }
                             Ok(Some(vec)) => {
-                                eprintln!("output: {}", ::std::str::from_utf8(&vec).unwrap());
+                                debug!("output: {}", ::std::str::from_utf8(&vec).unwrap());
                                 if let Err(err) = stream_tx.send(vec) {
                                     return Err(io::Error::new(
                                         io::ErrorKind::ConnectionAborted,
@@ -163,12 +163,23 @@ mod tests {
 
     use futures::{Async, Future};
 
+    use simple_logger;
+
     use std::io;
     use std::io::{Read, Write};
     use std::process::{Child, ChildStdout, Command, Stdio};
     use std::str::from_utf8;
     use std::thread::sleep;
     use std::time::{Duration, Instant};
+
+    // setup logger
+    use std::sync::{Once, ONCE_INIT};
+    static LOG_INIT: Once = ONCE_INIT;
+    fn setup() {
+        LOG_INIT.call_once(|| {
+            simple_logger::init().expect("unable to init logger");
+        });
+    }
 
     const TEST_COMMAND: &str = "echo";
     const TEST_STRING: &str = "hello, world";
@@ -196,6 +207,8 @@ mod tests {
 
     #[test]
     fn test_create_byte_stream() {
+        setup();
+
         let mut child = spawn_test_child();
         let mut stdin = child.stdin.take().expect("could not take stdin from child");
         let _bytes_written = stdin
@@ -219,7 +232,7 @@ mod tests {
             Ok(Async::Ready(None)) => {
                 panic!("stream has been closed");
             }
-            _ => eprintln!("output not ready"),
+            _ => debug!("output not ready"),
         }
 
         stream.stop().expect("error stopping stream");

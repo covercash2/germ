@@ -6,4 +6,6 @@ edition = "2018"
 
 [dependencies]
 futures = "0.1"
+log = "0.4.6"
 mio = "0.6"
+simple_logger = "1.0.1"
