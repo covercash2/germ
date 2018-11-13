@@ -75,17 +75,16 @@ impl ByteStream {
                 for event in events.iter() {
                     eprintln!("event: {:?}", event);
                     if event.token() == event_token && event.readiness().is_readable() {
-                        match reader.read(&mut result_buffer) {
-                            Ok(0) => {
-                                // nothing read
+                        match read(&mut reader, &mut result_buffer) {
+                            Ok(None) => {
+                                eprintln!("nothing read");
                             }
-                            Ok(bytes_read) => {
-                                // send buffer
-                                let result = Vec::from(&result_buffer[..bytes_read]);
-                                if let Err(err) = stream_tx.send(result) {
+                            Ok(Some(vec)) => {
+                                eprintln!("output: {}", ::std::str::from_utf8(&vec).unwrap());
+                                if let Err(err) = stream_tx.send(vec) {
                                     return Err(io::Error::new(
-                                        io::ErrorKind::BrokenPipe,
-                                        format!("unable to send stream\n{}", err),
+                                        io::ErrorKind::ConnectionAborted,
+                                        format!("unable to send stream:\n\t{}", err),
                                     ));
                                 }
                             }
@@ -126,9 +125,19 @@ impl ByteStream {
                 io::ErrorKind::Other,
                 format!("stream thread panicked:\n\t{:?}", e),
             )),
-            Ok(r) => r,
+            Ok(output) => {
+                return output;
+            }
         };
     }
+}
+
+fn read<R: Read>(reader: &mut R, buffer: &mut [u8]) -> io::Result<Option<Vec<u8>>> {
+    return match reader.read(buffer) {
+        Ok(0) => Ok(None),
+        Ok(bytes_read) => Ok(Some(Vec::from(&mut buffer[..bytes_read]))),
+        Err(e) => Err(e),
+    };
 }
 
 impl Stream for ByteStream {
@@ -155,7 +164,7 @@ mod tests {
     use futures::{Async, Future};
 
     use std::io;
-    use std::io::Read;
+    use std::io::{Read, Write};
     use std::process::{Child, ChildStdout, Command, Stdio};
     use std::str::from_utf8;
     use std::thread::sleep;
@@ -177,42 +186,42 @@ mod tests {
             .expect("could not spawn test command");
     }
 
-    //   fn spawn_iteractive_command() -> Child {
-    //       return Command::new("sh")
-    //           .arg("-i")
-    //           .stdout(Stdio::piped())
-    //           .spawn()
-    //           .expect("could not spawn test command");
-    //   }
+    fn spawn_test_child() -> Child {
+        return Command::new("sh")
+            .stdout(Stdio::piped())
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("could not spawn test child");
+    }
 
     #[test]
     fn test_create_byte_stream() {
-        let mut child = spawn_test_command();
+        let mut child = spawn_test_child();
+        let mut stdin = child.stdin.take().expect("could not take stdin from child");
+        let _bytes_written = stdin
+            .write(&format!("{} {}", TEST_COMMAND, TEST_STRING).as_bytes())
+            .expect("could not write to stdin");
         let mut stream = ByteStream::spawn(
             child
                 .stdout
                 .take()
                 .expect("could not get stdout from child"),
         );
-        let mut result: Vec<u8> = Vec::new();
         let expected = format!("{}\n", TEST_STRING);
 
-        sleep(Duration::from_secs(SHORT_TIMEOUT_SECS));
-
-        loop {
-            match stream.poll() {
-                Ok(Async::Ready(Some(result))) => {
-                    assert_eq!(
-                        &from_utf8(&result).expect("couldn't parse output"),
-                        &expected
-                    );
-                }
-                Ok(Async::Ready(None)) => {
-                    panic!("stream has no output");
-                }
-                _ => eprintln!("output not ready"),
+        match stream.poll() {
+            Ok(Async::Ready(Some(result))) => {
+                assert_eq!(
+                    &from_utf8(&result).expect("couldn't parse output"),
+                    &expected
+                );
             }
+            Ok(Async::Ready(None)) => {
+                panic!("stream has been closed");
+            }
+            _ => eprintln!("output not ready"),
         }
+
         stream.stop().expect("error stopping stream");
     }
 }
