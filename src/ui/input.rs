@@ -1,3 +1,4 @@
+use druid::KeyModifiers;
 use druid::widget::TextBox;
 use druid::{Data, Event, KeyCode, KeyEvent, Lens, Widget};
 
@@ -19,6 +20,10 @@ impl Default for CommandInputBuffer {
 impl CommandInputBuffer {
     fn submit_command(&mut self) {
 	self.command.replace(self.input.clone());
+    }
+
+    fn clear(&mut self) {
+	self.input.clear()
     }
 }
 
@@ -54,7 +59,21 @@ impl Widget<CommandInputBuffer> for CommandInputBox {
                 println!("you pressed enter");
 		data.submit_command();
 		println!("command submittted: {}", data.command.as_ref().unwrap());
-            }
+            },
+	    Event::KeyDown(KeyEvent {
+		key_code: KeyCode::Backspace,
+		is_repeat: false,
+		mods: KeyModifiers {
+		    shift: _,
+		    alt: _,
+		    ctrl: true,
+		    meta: _,
+		},
+		..
+	    }) => {
+		println!("backspace");
+		data.clear()
+	    }
             _ => {}
         }
     }
