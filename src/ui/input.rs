@@ -1,5 +1,20 @@
 use druid::widget::TextBox;
-use druid::{Event, KeyCode, KeyEvent, Widget};
+use druid::{Data, Event, KeyCode, KeyEvent, Lens, Widget};
+
+#[derive(Lens, Data, Clone)]
+pub struct CommandInputBuffer {
+    input: String,
+    submition: Option<String>,
+}
+
+impl Default for CommandInputBuffer {
+    fn default() -> Self {
+        CommandInputBuffer {
+	    input: String::new(),
+	    submition: None,
+	}
+    }
+}
 
 pub struct CommandInputBox {
     text: TextBox,
@@ -13,24 +28,24 @@ impl CommandInputBox {
     }
 }
 
-impl Widget<String> for CommandInputBox {
+impl Widget<CommandInputBuffer> for CommandInputBox {
     fn event(
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &druid::Event,
-        data: &mut String,
+        data: &mut CommandInputBuffer,
         env: &druid::Env,
     ) {
-        self.text.event(ctx, event, data, env);
+        self.text.event(ctx, event, &mut data.input, env);
 
         match event {
             Event::KeyDown(KeyEvent {
                 key_code: KeyCode::Return,
                 is_repeat: false,
                 mods: _,
-		..
+                ..
             }) => {
-		println!("you pressed enter");
+                println!("you pressed enter");
             }
             _ => {}
         }
@@ -40,33 +55,33 @@ impl Widget<String> for CommandInputBox {
         &mut self,
         ctx: &mut druid::LifeCycleCtx,
         event: &druid::LifeCycle,
-        data: &String,
+        data: &CommandInputBuffer,
         env: &druid::Env,
     ) {
-        self.text.lifecycle(ctx, event, data, env)
+        self.text.lifecycle(ctx, event, &data.input, env)
     }
 
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &String,
-        data: &String,
+        old_data: &CommandInputBuffer,
+        data: &CommandInputBuffer,
         env: &druid::Env,
     ) {
-        self.text.update(ctx, old_data, data, env)
+        self.text.update(ctx, &old_data.input, &data.input, env)
     }
 
     fn layout(
         &mut self,
         ctx: &mut druid::LayoutCtx,
         bc: &druid::BoxConstraints,
-        data: &String,
+        data: &CommandInputBuffer,
         env: &druid::Env,
     ) -> druid::Size {
-        self.text.layout(ctx, bc, data, env)
+        self.text.layout(ctx, bc, &data.input, env)
     }
 
-    fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &String, env: &druid::Env) {
-        self.text.paint(ctx, data, env)
+    fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &CommandInputBuffer, env: &druid::Env) {
+        self.text.paint(ctx, &data.input, env)
     }
 }

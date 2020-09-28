@@ -1,18 +1,20 @@
-use druid::widget::{Flex, Label, TextBox};
+use druid::widget::{Flex, Label};
 use druid::{AppLauncher, Data, Env, Lens, PlatformError, Widget, WidgetExt, WindowDesc};
 
 mod input;
 
+use input::CommandInputBuffer;
+
 #[derive(Clone, Data, Lens)]
 struct AppState {
-    input: String,
+    input: CommandInputBuffer,
     test_msg: String,
 }
 
 pub fn create_ui() -> Result<(), PlatformError> {
     let main_window = WindowDesc::new(ui_builder);
     let data = AppState {
-	input: String::new(),
+        input: Default::default(),
         test_msg: String::new(),
     };
     AppLauncher::with_window(main_window)
@@ -27,5 +29,7 @@ fn ui_builder() -> impl Widget<AppState> {
 
     let output_label = Label::new(|data: &AppState, _: &Env| data.test_msg.clone());
 
-    Flex::column().with_flex_child(input_box, 1.0).with_flex_child(output_label, 1.0)
+    Flex::column()
+        .with_flex_child(input_box, 1.0)
+        .with_flex_child(output_label, 1.0)
 }
