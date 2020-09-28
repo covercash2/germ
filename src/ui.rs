@@ -28,9 +28,10 @@ fn ui_builder() -> impl Widget<AppState> {
         .expand_width();
 
     let output_label = Label::new(|data: &AppState, _: &Env| {
-	data.input.command.as_ref().map_or(String::new(), |s| {
-	    s.clone()
-	})
+        data.input
+            .command
+            .as_ref()
+            .map_or(String::new(), |s| s.clone())
     });
 
     Flex::column()
