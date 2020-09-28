@@ -4,15 +4,21 @@ use druid::{Data, Event, KeyCode, KeyEvent, Lens, Widget};
 #[derive(Lens, Data, Clone)]
 pub struct CommandInputBuffer {
     input: String,
-    submition: Option<String>,
+    pub command: Option<String>,
 }
 
 impl Default for CommandInputBuffer {
     fn default() -> Self {
         CommandInputBuffer {
 	    input: String::new(),
-	    submition: None,
+	    command: None,
 	}
+    }
+}
+
+impl CommandInputBuffer {
+    fn submit_command(&mut self) {
+	self.command.replace(self.input.clone());
     }
 }
 
@@ -46,6 +52,8 @@ impl Widget<CommandInputBuffer> for CommandInputBox {
                 ..
             }) => {
                 println!("you pressed enter");
+		data.submit_command();
+		println!("command submittted: {}", data.command.as_ref().unwrap());
             }
             _ => {}
         }
