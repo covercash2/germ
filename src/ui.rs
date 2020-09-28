@@ -1,18 +1,32 @@
-use druid::widget::{TextBox, Flex};
-use druid::{AppLauncher, LocalizedString, PlatformError, Widget, WidgetExt, WindowDesc};
+use druid::widget::{Flex, Label, TextBox};
+use druid::{AppLauncher, Data, Env, Lens, PlatformError, Widget, WidgetExt, WindowDesc};
 
-pub fn create_ui() -> Result<(), PlatformError>{
+mod input;
+
+#[derive(Clone, Data, Lens)]
+struct AppState {
+    input: String,
+    test_msg: String,
+}
+
+pub fn create_ui() -> Result<(), PlatformError> {
     let main_window = WindowDesc::new(ui_builder);
-    let data = String::new();
+    let data = AppState {
+	input: String::new(),
+        test_msg: String::new(),
+    };
     AppLauncher::with_window(main_window)
         .use_simple_logger()
         .launch(data)
 }
 
-fn ui_builder() -> impl Widget<String> {
-    let input_box = TextBox::new().with_placeholder("input")
+fn ui_builder() -> impl Widget<AppState> {
+    let input_box = TextBox::new()
+        .with_placeholder("input")
+        .lens(AppState::input)
         .expand_width();
 
-    Flex::column()
-        .with_flex_child(input_box, 1.0)
+    let output_label = Label::new(|data: &AppState, _: &Env| data.test_msg.clone());
+
+    Flex::column().with_flex_child(input_box, 1.0).with_flex_child(output_label, 1.0)
 }
