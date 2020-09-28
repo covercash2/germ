@@ -1,3 +1,4 @@
+mod shell;
 mod ui;
 
 fn main() {
