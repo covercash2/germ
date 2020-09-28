@@ -1,5 +1,5 @@
 use druid::widget::TextBox;
-use druid::{Event, Widget};
+use druid::{Event, KeyCode, KeyEvent, Widget};
 
 pub struct CommandInputBox {
     text: TextBox,
@@ -23,12 +23,17 @@ impl Widget<String> for CommandInputBox {
     ) {
         self.text.event(ctx, event, data, env);
 
-	match event {
-	    Event::KeyDown(keyevent) => {
-		println!("keyevent: {:?}", keyevent);
-	    },
-	    _ => {}
-	}
+        match event {
+            Event::KeyDown(KeyEvent {
+                key_code: KeyCode::Return,
+                is_repeat: false,
+                mods: _,
+		..
+            }) => {
+		println!("you pressed enter");
+            }
+            _ => {}
+        }
     }
 
     fn lifecycle(
