@@ -21,8 +21,7 @@ pub fn create_ui() -> Result<(), PlatformError> {
 }
 
 fn ui_builder() -> impl Widget<AppState> {
-    let input_box = TextBox::new()
-        .with_placeholder("input")
+    let input_box = input::CommandInputBox::new()
         .lens(AppState::input)
         .expand_width();
 
