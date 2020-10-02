@@ -12,13 +12,20 @@ impl From<IoError> for ShellError {
 }
 
 trait Shell {
-    fn run_command(&mut self, command: &str) -> Result<String, ShellError>;
+    type Output;
+    fn run_command(&mut self, command: &str) -> Result<Self::Output, ShellError>;
 }
 
 struct DefaultShell;
+struct DefaultOutput {
+    result_code: i32,
+    stdout: String,
+    stderr: String,
+}
 
 impl Shell for DefaultShell {
-    fn run_command(&mut self, command: &str) -> Result<String, ShellError> {
+    type Output = DefaultOutput;
+    fn run_command(&mut self, command: &str) -> Result<Self::Output, ShellError> {
         let mut cmd_args = command.split_whitespace();
 
         let mut command = Command::new(cmd_args.next().unwrap_or_default());
@@ -28,8 +35,9 @@ impl Shell for DefaultShell {
         let output = command.output()?;
         let stdout = String::from_utf8(output.stdout).expect("unable to create string from stdout");
         let stderr = String::from_utf8(output.stderr).expect("unable to create string from stderr");
+	let code: usize = output.status.code;
 
-	return Ok(stdout + &stderr);
+	return Ok((stdout, stderr));
     }
 }
 
